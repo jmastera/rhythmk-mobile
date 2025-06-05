@@ -1,0 +1,30 @@
+{
+  "cli": {
+    "version": ">= 16.8.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "ENV_GOOGLE_MAPS_API_KEY": "${ANDROID_MAPS_KEY_DEV}"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "ENV_GOOGLE_MAPS_API_KEY": "${ANDROID_MAPS_KEY_DEV}"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "ENV_GOOGLE_MAPS_API_KEY": "${ANDROID_MAPS_KEY_DEV}"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
