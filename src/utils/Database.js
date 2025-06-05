@@ -96,4 +96,36 @@ export const addActivity = async (activity) => {
   }
 };
 
-// We will add functions for getActivities, updateActivity, deleteActivity later
+// Function to get all activities
+export const getActivities = async () => {
+  try {
+    const db = await openDatabase();
+    const results = await db.executeSql('SELECT * FROM activities ORDER BY date DESC;');
+    const activities = [];
+    if (results[0]) { // results is an array, first element contains the rows
+      for (let i = 0; i < results[0].rows.length; i++) {
+        activities.push(results[0].rows.item(i));
+      }
+    }
+    console.log('Activities fetched successfully:', activities);
+    return { success: true, data: activities };
+  } catch (error) {
+    console.error('Error fetching activities:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+// Function to delete an activity by its ID
+export const deleteActivity = async (id) => {
+  try {
+    const db = await openDatabase();
+    await db.executeSql('DELETE FROM activities WHERE id = ?;', [id]);
+    console.log(`Activity with id ${id} deleted successfully.`);
+    return { success: true };
+  } catch (error) {
+    console.error(`Error deleting activity with id ${id}:`, error);
+    return { success: false, error: error.message };
+  }
+};
+
+// We will add functions for updateActivity later

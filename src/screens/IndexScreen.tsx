@@ -39,6 +39,12 @@ const IndexScreen = () => {
           onPress={() => navigation.navigate('LogActivity')}
           color="#3b82f6" // A blue color, similar to blue-500
         />
+        <View style={{ marginTop: 10 }} /> {/* Add some space */}
+        <Button 
+          title="View Activity History"
+          onPress={() => navigation.navigate('ActivityHistory')}
+          color="#10b981" // An emerald/green color
+        />
       </View>
 
       {/* 

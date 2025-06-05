@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert } from 'react-native';
+import { Platform } from 'react-native'; // Import Platform
+import { View, Text, TextInput, Button, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { addActivity } from '../utils/Database'; // Assuming Database.js is in src/utils
 import { useNavigation } from '@react-navigation/native';
 
@@ -10,7 +13,8 @@ const LogActivityScreen = () => {
   const navigation = useNavigation();
   const [activityType, setActivityType] = useState('');
   const [customActivityName, setCustomActivityName] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]); // Default to today YYYY-MM-DD
+  const [date, setDate] = useState(new Date()); // Store as Date object
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState('');
   const [intensity, setIntensity] = useState(''); // e.g., 'Low', 'Medium', 'High'
   const [notes, setNotes] = useState('');
@@ -44,7 +48,7 @@ const LogActivityScreen = () => {
     const result = await addActivity({
       activityType: activityType === 'Other' && customActivityName ? customActivityName : activityType,
       customActivityName: activityType === 'Other' ? customActivityName : null, // Store custom name if 'Other'
-      date,
+      date: date.toISOString().split('T')[0], // Format date to YYYY-MM-DD string for DB
       durationMinutes: durationNum,
       intensity,
       notes,
@@ -59,16 +63,31 @@ const LogActivityScreen = () => {
     }
   };
 
+  const onChangeDate = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    const currentDate = selectedDate || date;
+    setShowDatePicker(Platform.OS === 'ios'); // Keep open on iOS until user dismisses
+    setDate(currentDate);
+  };
+
+  const showMode = () => {
+    setShowDatePicker(true);
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Activity Type:</Text>
-      {/* Replace with a Picker/Dropdown later */}
-      <TextInput
-        style={styles.input}
-        placeholder="e.g., Strength Training, Cycling (Use 'Other' for custom)"
-        value={activityType}
-        onChangeText={setActivityType}
-      />
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={activityType}
+          onValueChange={(itemValue) => setActivityType(itemValue)}
+          style={styles.picker}
+        >
+          <Picker.Item label="Select an activity type..." value="" />
+          {activityTypes.map((type) => (
+            <Picker.Item key={type} label={type} value={type} />
+          ))}
+        </Picker>
+      </View>
       {activityType === 'Other' && (
         <TextInput
           style={styles.input}
@@ -79,14 +98,19 @@ const LogActivityScreen = () => {
       )}
 
       <Text style={styles.label}>Date:</Text>
-      {/* Replace with a DatePicker later */}
-      <TextInput
-        style={styles.input}
-        placeholder="YYYY-MM-DD"
-        value={date}
-        onChangeText={setDate}
-        keyboardType="numeric" // Basic validation, ideally a date picker
-      />
+      <TouchableOpacity onPress={showMode} style={styles.inputLikeButton}>
+        <Text style={styles.dateText}>{date.toLocaleDateString()}</Text>
+      </TouchableOpacity>
+      {showDatePicker && (
+        <DateTimePicker
+          testID="dateTimePicker"
+          value={date}
+          mode={'date'}
+          is24Hour={true}
+          display="default"
+          onChange={onChangeDate}
+        />
+      )}
 
       <Text style={styles.label}>Duration (minutes):</Text>
       <TextInput
@@ -137,6 +161,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 5,
     marginTop: 10,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 5,
+    marginBottom: 10,
+  },
+  picker: {
+    height: 50, 
+    // width: '100%', // Not always needed, depends on container
+  },
+  inputLikeButton: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    borderRadius: 5,
+    marginBottom: 10,
+    justifyContent: 'center',
+    height: 50, // Match input height
+  },
+  dateText: {
+    fontSize: 16, // Match input text size
   },
   input: {
     borderWidth: 1,

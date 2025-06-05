@@ -11,6 +11,7 @@ import ProgressScreen from './src/screens/ProgressScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import RaceGoalScreen from './src/screens/RaceGoalScreen';
 import LogActivityScreen from './src/screens/LogActivityScreen'; // Import LogActivityScreen
+import ActivityHistoryScreen from './src/screens/ActivityHistoryScreen'; // Import ActivityHistoryScreen
 import { StatusBar } from 'expo-status-bar'; // Keep StatusBar if desired
 import { initializeDatabase } from './src/utils/Database'; // Import database initializer
 
@@ -30,6 +31,7 @@ export type RootStackParamList = {
   History: undefined;
   RaceGoal: undefined;
   LogActivity: undefined; // Add LogActivityScreen
+  ActivityHistory: undefined; // Add ActivityHistoryScreen
   // Add other screen definitions here as we migrate them
   // e.g., WorkoutDetail: { workoutId: string };
 };
@@ -93,6 +95,11 @@ export default function App() {
             name="LogActivity"
             component={LogActivityScreen}
             options={{ title: 'Log Activity' }}
+          />
+          <Stack.Screen
+            name="ActivityHistory"
+            component={ActivityHistoryScreen}
+            options={{ title: 'Activity History' }}
           />
           {/* We will add more screens here later */}
         </Stack.Navigator>
