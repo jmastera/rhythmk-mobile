@@ -94,15 +94,6 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
-        // Try accessing the secret directly by its name, as EAS might expose plain text secrets this way
-        def actualApiKey = System.getenv("ANDROID_MAPS_KEY_DEV")
-        if (actualApiKey) {
-            manifestPlaceholders = [GOOGLE_MAPS_API_KEY: actualApiKey]
-        } else if (project.hasProperty("ENV_GOOGLE_MAPS_API_KEY")) { // Check for local gradle.properties
-            def mapsApiKeyFromProps = project.property("ENV_GOOGLE_MAPS_API_KEY")
-            manifestPlaceholders = [GOOGLE_MAPS_API_KEY: mapsApiKeyFromProps]
-        } else {
-        }
     }
     signingConfigs {
         debug {

@@ -1,12 +1,18 @@
 import React from 'react';
-import { View, StyleSheet, Image, ScrollView } from 'react-native';
+import { View, StyleSheet, Image, ScrollView, Button } from 'react-native';
 import Navigation from '../components/Navigation';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../../App'; // Adjust path if App.tsx is elsewhere
 import { useUserSettings } from '../hooks/useUserSettings'; // Assuming path is correct
 
 // Assuming the logo is in assets/rhythmk-logo-trans.png
 const logo = require('../../assets/rhythmk-logo-trans.png');
 
+type IndexScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Index'>;
+
 const IndexScreen = () => {
+  const navigation = useNavigation<IndexScreenNavigationProp>();
   const { settings } = useUserSettings();
   // Determine if there's an active plan based on user settings
   // This logic might need adjustment based on how 'raceGoal' and 'fitnessLevel' are stored
@@ -25,6 +31,14 @@ const IndexScreen = () => {
       {/* Navigation is always shown if IndexScreen is reached */}
       <View style={styles.navigationContainer}>
         <Navigation hasActivePlan={hasActivePlan} />
+      </View>
+
+      <View style={styles.actionButtonContainer}>
+        <Button 
+          title="Log New Activity"
+          onPress={() => navigation.navigate('LogActivity')}
+          color="#3b82f6" // A blue color, similar to blue-500
+        />
       </View>
 
       {/* 
@@ -57,6 +71,11 @@ const styles = StyleSheet.create({
   logo: {
     width: 180,
     height: 70,
+  },
+  actionButtonContainer: {
+    width: '80%', // Make button reasonably wide
+    marginTop: 20,
+    marginBottom: 20,
   },
   navigationContainer: {
     width: '100%',

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -10,7 +10,9 @@ import SettingsScreen from './src/screens/SettingsScreen'; // Import SettingsScr
 import ProgressScreen from './src/screens/ProgressScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
 import RaceGoalScreen from './src/screens/RaceGoalScreen';
+import LogActivityScreen from './src/screens/LogActivityScreen'; // Import LogActivityScreen
 import { StatusBar } from 'expo-status-bar'; // Keep StatusBar if desired
+import { initializeDatabase } from './src/utils/Database'; // Import database initializer
 
 // Define the type for the stack navigator route params
 // Ensure this interface matches or is imported from a shared types file
@@ -27,6 +29,7 @@ export type RootStackParamList = {
   Progress: undefined;
   History: undefined;
   RaceGoal: undefined;
+  LogActivity: undefined; // Add LogActivityScreen
   // Add other screen definitions here as we migrate them
   // e.g., WorkoutDetail: { workoutId: string };
 };
@@ -35,6 +38,18 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const queryClient = new QueryClient();
 
 export default function App() {
+  useEffect(() => {
+    const initDB = async () => {
+      try {
+        await initializeDatabase();
+        console.log('Database initialized successfully from App.tsx');
+      } catch (error) {
+        console.error('Failed to initialize database from App.tsx:', error);
+      }
+    };
+    initDB();
+  }, []); // Empty dependency array ensures this runs only once on mount
+
   return (
     <QueryClientProvider client={queryClient}>
       <NavigationContainer>
@@ -73,6 +88,11 @@ export default function App() {
             name="RaceGoal"
             component={RaceGoalScreen}
             options={{ title: 'Race Goal' }}
+          />
+          <Stack.Screen
+            name="LogActivity"
+            component={LogActivityScreen}
+            options={{ title: 'Log Activity' }}
           />
           {/* We will add more screens here later */}
         </Stack.Navigator>
