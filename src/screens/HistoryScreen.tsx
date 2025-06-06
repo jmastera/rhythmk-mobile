@@ -7,37 +7,87 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Calendar, MapPin, Clock, Zap, TrendingUp, X } from 'lucide-react-native';
 import ErrorBoundary from '../components/ErrorBoundary'; // Import ErrorBoundary
 import WorkoutDetail from '../components/WorkoutDetail'; 
-import { WorkoutEntry, WORKOUT_HISTORY_KEY } from '../types/history'; 
+import { WorkoutEntry, WORKOUT_HISTORY_KEY } from '../types/history';
+import { getActivities, deleteActivity as deleteDbActivity } from '../utils/Database'; // Renamed to avoid conflict 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+// Define a type for logged activities from the database
+interface LoggedActivity {
+  id: number; // Assuming id is number from DB
+  activityType: string;
+  customActivityName?: string | null;
+  date: string; // ISO date string
+  duration: number; // in seconds
+  intensity?: string | null;
+  notes?: string | null;
+  caloriesBurned?: number | null;
+}
+
+// Define a unified history item type
+interface UnifiedHistoryItemBase {
+  date: string; // Common property for sorting
+  id: string | number; // string for runs, number for logged activities
+}
+
+interface RunHistoryItem extends WorkoutEntry, UnifiedHistoryItemBase {
+  source: 'run';
+  id: string; // WorkoutEntry id is string
+}
+
+interface LoggedActivityItem extends LoggedActivity, UnifiedHistoryItemBase {
+  source: 'logged';
+  id: number; // LoggedActivity id is number
+}
+
+export type UnifiedHistoryItem = RunHistoryItem | LoggedActivityItem;
+
 const HistoryScreen: React.FC = () => {
   const { settings } = useUserSettings();
-  const [workouts, setWorkouts] = useState<WorkoutEntry[]>([]);
-  const [selectedWorkout, setSelectedWorkout] = useState<WorkoutEntry | null>(null);
+  const [workouts, setWorkouts] = useState<UnifiedHistoryItem[]>([]);
+  const [selectedWorkout, setSelectedWorkout] = useState<UnifiedHistoryItem | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useFocusEffect(
     useCallback(() => {
-      const loadWorkouts = async () => {
+      const loadAllHistory = async () => {
         setIsLoading(true);
+        let combinedHistory: UnifiedHistoryItem[] = [];
+
         try {
-          const storedWorkouts = await AsyncStorage.getItem(WORKOUT_HISTORY_KEY);
-          if (storedWorkouts) {
-            const parsedWorkouts: WorkoutEntry[] = JSON.parse(storedWorkouts);
-            // Sort by date, most recent first
-            parsedWorkouts.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            setWorkouts(parsedWorkouts);
-          } else {
-            setWorkouts([]);
+          // 1. Fetch runs from AsyncStorage
+          const storedWorkoutsJson = await AsyncStorage.getItem(WORKOUT_HISTORY_KEY);
+          if (storedWorkoutsJson) {
+            const parsedRuns: WorkoutEntry[] = JSON.parse(storedWorkoutsJson);
+            const runItems: RunHistoryItem[] = parsedRuns.map(run => ({ ...run, source: 'run' as const, id: run.id }));
+            combinedHistory.push(...runItems);
           }
+
+          // 2. Fetch logged activities from SQLite
+          // getActivities returns Promise<{ success: boolean; data?: LoggedActivity[]; error?: string; }>
+          const dbActivitiesResult = await getActivities(); 
+          if (dbActivitiesResult.success && Array.isArray(dbActivitiesResult.data)) {
+            const loggedItems: LoggedActivityItem[] = dbActivitiesResult.data.map((act: LoggedActivity) => ({
+              ...act,
+              source: 'logged' as const,
+              id: act.id, 
+            }));
+            combinedHistory.push(...loggedItems);
+          } else if (!dbActivitiesResult.success) {
+            console.error('Failed to load logged activities:', dbActivitiesResult.error);
+          }
+
+          // 3. Sort combined history by date, most recent first
+          combinedHistory.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          setWorkouts(combinedHistory);
+
         } catch (error) {
-          console.error('Failed to load workouts:', error);
-          setWorkouts([]);
+          console.error('Failed to load history:', error);
+          setWorkouts([]); // Set to empty array on error
         }
         setIsLoading(false);
       };
 
-      loadWorkouts();
+      loadAllHistory();
 
       return () => {
         // Optional cleanup if needed when screen loses focus
@@ -52,7 +102,13 @@ const HistoryScreen: React.FC = () => {
     return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
   };
 
-  const getTypeStyle = (planName: string | undefined) => {
+  const getTypeStyle = (item: UnifiedHistoryItem) => {
+    if (item.source === 'logged') {
+      // Default style for logged activities
+      return { backgroundColor: 'rgba(75, 85, 99, 0.2)', textColor: '#4b5563', borderColor: 'rgba(75, 85, 99, 0.5)' };
+    }
+    // Existing logic for runs (planName is on RunHistoryItem)
+    const planName = item.planName;
     if (!planName) return { backgroundColor: 'rgba(107, 114, 128, 0.2)', textColor: '#6b7280', borderColor: 'rgba(107, 114, 128, 0.5)' };
     const stylesMap: { [key: string]: { backgroundColor: string; textColor: string; borderColor: string } } = {
       'Easy Run': { backgroundColor: 'rgba(34, 197, 94, 0.2)', textColor: '#22c55e', borderColor: 'rgba(34, 197, 94, 0.5)' },
@@ -65,17 +121,38 @@ const HistoryScreen: React.FC = () => {
   };
 
   const totalStats = {
-    totalRuns: workouts.length,
-    totalDistance: parseFloat((workouts.reduce((sum, w) => sum + w.distance, 0) / 1000).toFixed(1)),
-    totalDuration: workouts.reduce((sum, w) => sum + w.duration, 0),
+    totalRuns: workouts.filter(w => w.source === 'run').length,
+    totalDistance: parseFloat(
+      (workouts.reduce((sum, w) => {
+        if (w.source === 'run') {
+          return sum + w.distance;
+        }
+        return sum;
+      }, 0) / 1000).toFixed(1)
+    ),
+    totalDuration: workouts.reduce((sum, w) => sum + w.duration, 0), // duration is common
   };
 
-  const handleWorkoutPress = (workout: WorkoutEntry) => {
-    setSelectedWorkout(workout);
-    setModalVisible(true);
+  const handleWorkoutPress = (workout: UnifiedHistoryItem) => {
+    // For now, only allow viewing details for 'run' items as WorkoutDetail is specific to runs
+    // We can expand this later if we create a detail view for logged activities
+    if (workout.source === 'run') {
+      setSelectedWorkout(workout);
+      setModalVisible(true);
+    } else {
+      // Optionally, show a simple alert or log for logged activities
+      const durationInSeconds = workout.duration;
+      const durationString = typeof durationInSeconds === 'number' && !isNaN(durationInSeconds)
+        ? `${Math.round(durationInSeconds / 60)} minutes` // Convert seconds to minutes and round
+        : 'N/A';
+      Alert.alert(
+        workout.customActivityName || workout.activityType,
+        `Duration: ${durationString}\nIntensity: ${workout.intensity || 'N/A'}\nNotes: ${workout.notes || 'N/A'}`
+      );
+    }
   };
 
-  const handleDeleteWorkout = async (workoutId: string) => {
+  const handleDeleteWorkout = async (itemToDelete: UnifiedHistoryItem) => {
     Alert.alert(
       'Delete Workout',
       'Are you sure you want to delete this workout? This action cannot be undone.',
@@ -88,14 +165,28 @@ const HistoryScreen: React.FC = () => {
           text: 'Delete',
           onPress: async () => {
             try {
-              const updatedWorkouts = workouts.filter(w => w.id !== workoutId);
+              let updatedWorkouts = workouts.filter(w => w.id !== itemToDelete.id);
+            if (itemToDelete.source === 'run') {
+              // Filter out the deleted run and save only runs back to AsyncStorage
+              const runsToSave = updatedWorkouts.filter(w => w.source === 'run') as RunHistoryItem[];
+              await AsyncStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(runsToSave));
+            } else if (itemToDelete.source === 'logged') {
+              // Call deleteDbActivity for logged items (which are numbers)
+              const result = await deleteDbActivity(itemToDelete.id as number);
+              if (!result.success) {
+                Alert.alert('Error', result.error || 'Failed to delete logged activity from database.');
+                // Potentially revert optimistic update if DB delete fails by re-fetching
+                // loadAllHistory(); // Make sure loadAllHistory is accessible or defined if needed here
+                return; // Prevent setting state if DB delete failed
+              }
+            }
               setWorkouts(updatedWorkouts);
-              await AsyncStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(updatedWorkouts));
+              // AsyncStorage.setItem was moved into the 'run' block, no longer needed here for all cases
             } catch (error) {
               console.error('Failed to delete workout:', error);
-              Alert.alert('Error', 'Could not delete workout. Please try again.');
-              // Optionally, reload workouts to revert optimistic update if save fails
-              // loadWorkouts(); // Make sure loadWorkouts is accessible or defined here
+              Alert.alert('Error', 'Could not delete item. Please try again.');
+              // Optionally, reload history to revert optimistic update if save fails
+              // loadAllHistory(); // Make sure loadAllHistory is accessible or defined here
             }
           },
           style: 'destructive',
@@ -152,56 +243,98 @@ const HistoryScreen: React.FC = () => {
       </LinearGradient>
 
       {/* Workout List */}
-      {workouts.map((workout) => {
-        const typeStyle = getTypeStyle(workout.planName);
-        return (
-          <TouchableOpacity key={workout.id} onPress={() => handleWorkoutPress(workout)} onLongPress={() => handleDeleteWorkout(workout.id)} style={[styles.card, styles.workoutItemCard]}>
-            <View style={styles.workoutItemHeader}>
-              <View style={styles.dateContainer}>
-                <Calendar size={16} color={typeStyle.textColor} style={styles.iconSmall} />
-                <Text style={[styles.dateText, { color: typeStyle.textColor }]}>
-                  {new Date(workout.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                </Text>
+      {workouts.map((item) => {
+        const typeStyle = getTypeStyle(item);
+        if (item.source === 'run') {
+          // Render card for a Run (existing logic, ensuring item is cast to RunHistoryItem for type safety)
+          const runItem = item as RunHistoryItem;
+          return (
+            <TouchableOpacity key={runItem.id} onPress={() => handleWorkoutPress(runItem)} onLongPress={() => handleDeleteWorkout(runItem)} style={[styles.card, styles.workoutItemCard]}>
+              <View style={styles.workoutItemHeader}>
+                <View style={styles.dateContainer}>
+                  <Calendar size={16} color={typeStyle.textColor} style={styles.iconSmall} />
+                  <Text style={[styles.dateText, { color: typeStyle.textColor }]}>
+                    {new Date(runItem.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                </View>
+                <View style={[styles.badge, { backgroundColor: typeStyle.backgroundColor, borderColor: typeStyle.borderColor }]}>
+                  <Text style={[styles.badgeText, { color: typeStyle.textColor }]}>{(runItem.planName || 'Free Run').toUpperCase()}</Text>
+                </View>
               </View>
-              <View style={[styles.badge, { backgroundColor: typeStyle.backgroundColor, borderColor: typeStyle.borderColor }]}>
-                <Text style={[styles.badgeText, { color: typeStyle.textColor }]}>{(workout.planName || 'Free Run').toUpperCase()}</Text>
+              <View style={styles.workoutStatsGrid}>
+                <View style={styles.workoutStatItem}>
+                  <MapPin size={18} color="#9ca3af" />
+                  <Text style={styles.workoutStatValue}>
+                    {formatDistanceDisplay(runItem.distance, settings.displayUnit)}
+                  </Text>
+                  <Text style={styles.workoutStatLabel}>Distance</Text>
+                </View>
+                <View style={styles.workoutStatItem}>
+                  <Clock size={18} color="#9ca3af" />
+                  <Text style={styles.workoutStatValue}>{formatTime(runItem.duration)}</Text>
+                  <Text style={styles.workoutStatLabel}>Duration</Text>
+                </View>
+                <View style={styles.workoutStatItem}>
+                  <Zap size={16} color="#9ca3af" style={styles.iconSmall} />
+                  <Text style={styles.workoutStatValue}>
+                    {runItem.avgPace !== undefined
+                      ? formatPaceDisplay(runItem.avgPace, settings.displayUnit)
+                      : '--:--'}
+                  </Text>
+                  <Text style={styles.workoutStatLabel}>Avg Pace</Text>
+                </View>
+                <View style={styles.workoutStatItem}>
+                  <TrendingUp size={18} color="#9ca3af" />
+                  <Text style={styles.workoutStatValue}>{runItem.avgHeartRate ? `${Math.round(runItem.avgHeartRate)} bpm` : 'N/A'}</Text>
+                  <Text style={styles.workoutStatLabel}>Avg HR</Text>
+                </View>
               </View>
-            </View>
-
-            <View style={styles.workoutStatsGrid}>
-              <View style={styles.workoutStatItem}>
-                <MapPin size={18} color="#9ca3af" />
-                <Text style={styles.workoutStatValue}>
-                  {formatDistanceDisplay(workout.distance, settings.displayUnit)}
-                </Text>
-                <Text style={styles.workoutStatLabel}>Distance</Text>
+            </TouchableOpacity>
+          );
+        } else if (item.source === 'logged') {
+          // Render card for a Logged Activity
+          const loggedItem = item as LoggedActivityItem;
+          return (
+            <TouchableOpacity key={loggedItem.id} onPress={() => handleWorkoutPress(loggedItem)} onLongPress={() => handleDeleteWorkout(loggedItem)} style={[styles.card, styles.workoutItemCard, {backgroundColor: typeStyle.backgroundColor}]}>
+              <View style={styles.workoutItemHeader}>
+                 <View style={styles.dateContainer}>
+                  <Calendar size={16} color={typeStyle.textColor} style={styles.iconSmall} />
+                  <Text style={[styles.dateText, { color: typeStyle.textColor }]}>
+                    {new Date(loggedItem.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </Text>
+                </View>
+                <View style={[styles.badge, { backgroundColor: typeStyle.borderColor, borderColor: typeStyle.textColor }]}>
+                  <Text style={[styles.badgeText, { color: typeStyle.textColor }]}>{(loggedItem.activityType).toUpperCase()}</Text>
+                </View>
               </View>
-              <View style={styles.workoutStatItem}>
-                <Clock size={18} color="#9ca3af" />
-                <Text style={styles.workoutStatValue}>{formatTime(workout.duration)}</Text>
-                <Text style={styles.workoutStatLabel}>Duration</Text>
+              <Text style={[styles.loggedActivityTitle, {color: typeStyle.textColor}]}>{loggedItem.customActivityName || loggedItem.activityType}</Text>
+              <View style={styles.loggedActivityDetailsContainer}>
+                <View style={styles.loggedActivityDetailItem}>
+                  <Clock size={16} color="#9ca3af" />
+                  <Text style={styles.loggedActivityDetailText}>Duration: {formatTime(loggedItem.duration)}</Text>
+                </View>
+                {loggedItem.intensity && (
+                  <View style={styles.loggedActivityDetailItem}>
+                    <Zap size={16} color="#9ca3af" />{/* Using Zap for intensity, can change icon */}
+                    <Text style={styles.loggedActivityDetailText}>Intensity: {loggedItem.intensity}</Text>
+                  </View>
+                )}
+                {loggedItem.caloriesBurned !== null && loggedItem.caloriesBurned !== undefined && (
+                  <View style={styles.loggedActivityDetailItem}>
+                    {/* Icon for calories, e.g., Fire icon */}
+                    <Text style={styles.loggedActivityDetailText}>Calories: {loggedItem.caloriesBurned}</Text>
+                  </View>
+                )}
               </View>
-              <View style={styles.workoutStatItem}>
-                <Zap size={16} color="#9ca3af" style={styles.iconSmall} />
-                <Text style={styles.workoutStatValue}>
-                  {workout.avgPace !== undefined
-                    ? formatPaceDisplay(workout.avgPace, settings.displayUnit)
-                    : '--:--'}
-                </Text>
-                <Text style={styles.workoutStatLabel}>Avg Pace</Text>
-              </View>
-              <View style={styles.workoutStatItem}>
-                <TrendingUp size={18} color="#9ca3af" />
-                <Text style={styles.workoutStatValue}>N/A</Text>
-                <Text style={styles.workoutStatLabel}>Avg HR</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        );
+              {loggedItem.notes && <Text style={[styles.itemNotes, {color: typeStyle.textColor}]}>Notes: {loggedItem.notes}</Text>}
+            </TouchableOpacity>
+          );
+        }
+        return null; // Should not happen
       })}
 
       {/* Workout Detail Modal */}
-      {selectedWorkout && (
+      {selectedWorkout && selectedWorkout.source === 'run' && (
         <Modal
           animationType="slide"
           transparent={true}
@@ -229,6 +362,32 @@ const HistoryScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
+  // ... (keep existing styles) ...
+  loggedActivityTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 10,
+    marginBottom: 5,
+  },
+  loggedActivityDetailsContainer: {
+    marginTop: 8,
+  },
+  loggedActivityDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  loggedActivityDetailText: {
+    fontSize: 14,
+    marginLeft: 6,
+    color: '#4b5563',
+  },
+  itemNotes: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: '#6b7280',
+    marginTop: 8,
+  },
   centeredContent: {
     flex: 1,
     justifyContent: 'center',

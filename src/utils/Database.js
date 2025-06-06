@@ -35,7 +35,7 @@ export const createTables = async (tx) => {
         activityType TEXT NOT NULL,
         customActivityName TEXT,
         date TEXT NOT NULL, -- YYYY-MM-DD
-        durationMinutes INTEGER NOT NULL,
+        duration INTEGER NOT NULL, -- Store duration in seconds
         intensity TEXT, -- e.g., 'Low', 'Medium', 'High'
         notes TEXT,
         caloriesBurned INTEGER
@@ -74,12 +74,12 @@ export const executeSql = async (sql, params = []) => {
 // CRUD operations for activities
 
 export const addActivity = async (activity) => {
-  const { activityType, customActivityName, date, durationMinutes, intensity, notes, caloriesBurned } = activity;
+  const { activityType, customActivityName, date, duration, intensity, notes, caloriesBurned } = activity; // Expect 'duration' in seconds
   const sql = `
-    INSERT INTO activities (activityType, customActivityName, date, durationMinutes, intensity, notes, caloriesBurned)
+    INSERT INTO activities (activityType, customActivityName, date, duration, intensity, notes, caloriesBurned)
     VALUES (?, ?, ?, ?, ?, ?, ?);
   `;
-  const params = [activityType, customActivityName, date, durationMinutes, intensity, notes, caloriesBurned];
+  const params = [activityType, customActivityName, date, duration, intensity, notes, caloriesBurned];
   
   try {
     const database = await openDatabase();

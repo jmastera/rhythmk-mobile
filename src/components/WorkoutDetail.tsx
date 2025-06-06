@@ -14,17 +14,18 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
   const { settings } = useUserSettings();
   const mapRef = useRef<MapView | null>(null);
 
+  const validCoords = workout.coordinates && Array.isArray(workout.coordinates)
+    ? workout.coordinates
+        .filter(c => typeof c.latitude === 'number' && typeof c.longitude === 'number' && isFinite(c.latitude) && isFinite(c.longitude))
+        .map(c => ({ latitude: c.latitude, longitude: c.longitude }))
+    : [];
+
   useEffect(() => {
     // Only attempt to fit coordinates if maps are enabled and coordinates exist
-    if ((settings.renderMapsDebug ?? true) && mapRef.current && workout.coordinates && workout.coordinates.length > 0) {
-      const coordsForFit = workout.coordinates.map(c => ({
-        latitude: c.latitude,
-        longitude: c.longitude,
-      }));
-
+      if ((settings.renderMapsDebug ?? true) && mapRef.current && validCoords.length > 0) {
       // A slight delay can help ensure the map is ready, especially on initial load
       const timer = setTimeout(() => {
-        mapRef.current?.fitToCoordinates(coordsForFit, {
+        mapRef.current?.fitToCoordinates(validCoords, {
           edgePadding: {
             top: 50,
             right: 50,
@@ -36,7 +37,7 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [workout.coordinates, settings.renderMapsDebug]); // Add settings.renderMapsDebug to dependency array
+  }, [workout.coordinates, settings.renderMapsDebug, validCoords]); // Add validCoords to dependency array
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
@@ -44,7 +45,7 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
         <View style={styles.detailRow}>
           <Calendar size={18} color="#f97316" style={styles.icon} />
           <Text style={styles.detailLabel}>Date:</Text>
-          <Text style={styles.detailValue}>{new Date(workout.date).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</Text>
+          <Text style={styles.detailValue}>{workout.date && !isNaN(new Date(workout.date).getTime()) ? new Date(workout.date).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Invalid Date'}</Text>
         </View>
         <View style={styles.detailRow}>
           <Zap size={18} color="#f97316" style={styles.icon} />
@@ -58,17 +59,17 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
         <View style={styles.gridContainer}>
           <View style={styles.gridItem}>
             <MapPin size={20} color="#9ca3af" style={styles.gridIcon} />
-            <Text style={styles.gridValue}>{formatDistanceDisplay(workout.distance, settings.displayUnit)}</Text>
+            <Text style={styles.gridValue}>{typeof workout.distance === 'number' && isFinite(workout.distance) ? formatDistanceDisplay(workout.distance, settings.displayUnit) : 'N/A'}</Text>
             <Text style={styles.gridLabel}>Distance</Text>
           </View>
           <View style={styles.gridItem}>
             <Clock size={20} color="#9ca3af" style={styles.gridIcon} />
-            <Text style={styles.gridValue}>{formatDurationDisplay(workout.duration)}</Text>
+            <Text style={styles.gridValue}>{typeof workout.duration === 'number' && isFinite(workout.duration) ? formatDurationDisplay(workout.duration) : 'N/A'}</Text>
             <Text style={styles.gridLabel}>Duration</Text>
           </View>
           <View style={styles.gridItem}>
             <TrendingUp size={20} color="#9ca3af" style={styles.gridIcon} />
-            <Text style={styles.gridValue}>{workout.avgPace !== undefined ? formatPaceDisplay(workout.avgPace, settings.displayUnit) : `--:-- /${settings.displayUnit}`}</Text>
+            <Text style={styles.gridValue}>{typeof workout.avgPace === 'number' && isFinite(workout.avgPace) ? formatPaceDisplay(workout.avgPace, settings.displayUnit) : `--:-- /${settings.displayUnit}`}</Text>
             <Text style={styles.gridLabel}>Avg Pace</Text>
           </View>
         </View>
@@ -133,7 +134,7 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
 
       {/* Map Section */}
       {/* Conditionally render the entire map section based on debug setting */}
-      {(settings.renderMapsDebug ?? true) && workout.coordinates && workout.coordinates.length > 0 && (
+      {(settings.renderMapsDebug ?? true) && validCoords.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Route Map</Text>
           <View style={styles.mapContainer}>
@@ -143,7 +144,7 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
               provider={undefined} // Use default provider
             >
               <Polyline
-                coordinates={workout.coordinates.map(coord => ({ latitude: coord.latitude, longitude: coord.longitude }))}
+                coordinates={validCoords}
                 strokeColor="#f97316" // orange
                 strokeWidth={4}
               />
@@ -152,7 +153,7 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
         </View>
       )}
       {/* Also apply the debug setting condition to the 'no route data' message for consistency */}
-      {(settings.renderMapsDebug ?? true) && (!workout.coordinates || workout.coordinates.length === 0) && (
+      {(settings.renderMapsDebug ?? true) && validCoords.length === 0 && (
          <View style={styles.section}>
           <Text style={styles.sectionTitle}>Route Map</Text>
           <Text style={styles.detailValue}>No route data available for this workout.</Text>
