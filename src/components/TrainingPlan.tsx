@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Calendar, Target } from 'lucide-react-native';
+import { getRaceColor } from '../utils/raceColors';
 
 interface TrainingWeek {
   week: number;
@@ -29,6 +30,8 @@ interface TrainingPlanProps {
 }
 
 const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onReset }) => {
+  // Get race-specific color for consistent styling
+  const raceColor = getRaceColor(raceType);
   const generatePlan = () => {
     const plans: AllPlans = {
       beginner: {
@@ -118,15 +121,13 @@ const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onR
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onReset} style={styles.backButton}>
-          <ArrowLeft size={24} color="#9ca3af" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>Your Training Plan</Text>
       </View>
+      <Text style={styles.subtitle}>Follow this personalized schedule to reach your race day goal</Text>
 
       {/* Plan Overview */}
       <LinearGradient
-        colors={['#f97316', '#ea580c']} // Example orange gradient
+        colors={[raceColor, raceColor + 'dd']} // Use race-specific gradient
         style={[styles.card, styles.overviewCard]}
       >
         <Text style={styles.overviewCardTitle}>
@@ -154,13 +155,13 @@ const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onR
           <View key={index} style={styles.card}>
             <View style={styles.weekCardHeader}>
               <Text style={styles.weekCardTitle}>Week {week.week}</Text>
-              <Calendar size={20} color="#f97316" />
+              <Calendar size={20} color={raceColor} />
             </View>
             <View style={styles.cardContent}>
               {week.sessions.map((session: string, sessionIndex: number) => (
                 <View key={sessionIndex} style={styles.sessionItem}>
-                  <View style={styles.sessionBulletOuter}>
-                    <View style={styles.sessionBulletInner} />
+                  <View style={[styles.sessionBulletOuter, { backgroundColor: `${raceColor}20` }]}>
+                    <View style={[styles.sessionBulletInner, { backgroundColor: raceColor }]} />
                   </View>
                   <Text style={styles.sessionText}>{session}</Text>
                 </View>
@@ -172,13 +173,20 @@ const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onR
 
       {/* Call to Action */}
       <View style={[styles.card, styles.ctaCard]}>
-        <Target size={32} color="#f97316" style={{ marginBottom: 12 }} />
+        <Target size={32} color={raceColor} style={{ marginBottom: 12 }} />
         <Text style={styles.ctaTitle}>Ready to Start?</Text>
         <Text style={styles.ctaSubtitle}>
           Download this plan and start your journey to race day success!
         </Text>
-        <TouchableOpacity style={styles.downloadButton}>
+        <TouchableOpacity style={[styles.downloadButton, { backgroundColor: raceColor }]}>
           <Text style={styles.downloadButtonText}>Download Full Plan</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Stop Goal Option */}
+      <View style={styles.stopGoalContainer}>
+        <TouchableOpacity onPress={onReset}>
+          <Text style={styles.stopGoalText}>Stop Goal</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -193,6 +201,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
   },
@@ -204,6 +213,13 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: 'white',
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#a1a1aa',
+    textAlign: 'center',
+    marginBottom: 24,
+    paddingHorizontal: 20,
   },
   errorText: {
     color: 'yellow',
@@ -322,7 +338,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   downloadButton: {
-    backgroundColor: '#f97316', // orange-500
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
@@ -332,7 +347,17 @@ const styles = StyleSheet.create({
   downloadButtonText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+  },
+  stopGoalContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 24,
+  },
+  stopGoalText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
 });
 

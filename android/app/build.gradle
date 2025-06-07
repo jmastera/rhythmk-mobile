@@ -94,6 +94,7 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0.0"
+        manifestPlaceholders = [ANDROID_MAPS_KEY_DEV: System.getenv("ANDROID_MAPS_KEY_DEV") ?: "YOUR_API_KEY_WAS_NOT_SET"]
     }
     signingConfigs {
         debug {

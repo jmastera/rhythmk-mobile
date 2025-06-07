@@ -10,20 +10,28 @@ let db;
 
 export const openDatabase = async () => {
   if (db) {
+    console.log('Returning existing DB instance.');
     return db;
   }
   try {
-    console.log('Attempting to open database...');
-    db = await SQLite.openDatabase(
+    console.log('Attempting to open database with SQLite.openDatabase...');
+    const openedDb = await SQLite.openDatabase(
       { name: DATABASE_NAME, location: DATABASE_LOCATION },
-      () => console.log('Database OPENED successfully'),
-      (error) => console.error('Error opening database', error)
+      () => console.log('SQLite.openDatabase success callback invoked.'),
+      (err) => console.error('SQLite.openDatabase error callback invoked:', err)
     );
-    console.log('Database object:', db);
+
+    if (!openedDb) {
+      console.error('SQLite.openDatabase resolved but the db object is null or undefined.');
+      throw new Error('SQLite.openDatabase failed to return a valid database object.');
+    }
+    
+    db = openedDb; // Assign to global 'db' only if valid
+    console.log('Database opened successfully. DB object:', db);
     return db;
   } catch (error) {
-    console.error('Failed to open database:', error);
-    throw error;
+    console.error('Error in openDatabase function:', error.message, error.stack);
+    throw error; // Re-throw the error to be caught by the caller
   }
 };
 
@@ -128,4 +136,32 @@ export const deleteActivity = async (id) => {
   }
 };
 
-// We will add functions for updateActivity later
+// Function to update an existing activity
+export const updateActivity = async (id, updates) => {
+  try {
+    // Create the dynamic part of the SQL query based on the provided updates
+    const updateFields = [];
+    const values = [];
+    
+    Object.keys(updates).forEach(key => {
+      if (updates[key] !== undefined) {
+        updateFields.push(`${key} = ?`);
+        values.push(updates[key]);
+      }
+    });
+    
+    // Add the ID at the end of the values array for the WHERE clause
+    values.push(id);
+    
+    // Construct the final SQL query
+    const sql = `UPDATE activities SET ${updateFields.join(', ')} WHERE id = ?;`;
+    
+    const db = await openDatabase();
+    await db.executeSql(sql, values);
+    console.log(`Activity with id ${id} updated successfully.`);
+    return { success: true };
+  } catch (error) {
+    console.error(`Error updating activity with id ${id}:`, error);
+    return { success: false, error: error.message };
+  }
+};

@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, Zap, Edit3 } from 'lucide-react-native';
 import { useUserSettings, RaceGoalData } from '../hooks/useUserSettings';
 import RaceTypeSelector from '../components/RaceTypeSelector';
 import TrainingPlan from '../components/TrainingPlan';
+import { HeaderSafeArea } from '../components/HeaderSafeArea';
 
 type Step = 'selectFitness' | 'selectRaceType' | 'viewPlan' | 'confirmed';
 
@@ -93,16 +94,16 @@ const RaceGoalScreen = () => {
   };
 
   if (isLoadingSettings || !isInitializedFromSettings) {
-    return <View style={styles.centered}><ActivityIndicator size="large" color="#f97316" /></View>;
+    return (
+      <View style={styles.centered}>
+        <HeaderSafeArea />
+        <ActivityIndicator size="large" color="#f97316" />
+      </View>
+    );
   }
 
-  const renderHeader = (title: string, showBackButton: boolean = false) => (
+  const renderHeader = (title: string) => (
     <View style={styles.headerContainer}>
-      {showBackButton && (
-        <TouchableOpacity onPress={handleBackNavigation} style={styles.backButton}>
-          <ArrowLeft size={24} color="#f97316" />
-        </TouchableOpacity>
-      )}
       <Text style={styles.headerTitle}>{title}</Text>
     </View>
   );
@@ -145,7 +146,7 @@ const RaceGoalScreen = () => {
   if (step === 'selectRaceType' && flowFitnessLevel) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContentContainer}>
-        {renderHeader('Select Your Race Goal', true)}
+        {renderHeader('Select Your Race Goal')}
         <RaceTypeSelector onSelect={handleRaceTypeSelect} currentRaceTypeId={flowRaceType} />
       </ScrollView>
     );
@@ -164,31 +165,155 @@ const RaceGoalScreen = () => {
           raceType={flowRaceType}
           onReset={() => setStep('selectRaceType')} // Go back to race type selection
         />
+        <View style={styles.fixedActionContainer}>
+          <View style={styles.buttonContainerFixed}>
+            {isViewingActiveSavedPlan ? (
+              <TouchableOpacity
+                style={[styles.button, styles.editButton, { flex: 1 } ]}
+                onPress={handleEditActiveGoal}
+              >
+                <Edit3 size={18} color="white" style={{marginRight: 8}} />
+                <Text style={styles.buttonText}>Edit Current Goal</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.button, styles.primaryButton, { flex: 1 } ]}
+                onPress={handleConfirmPlan}
+              >
+                <Text style={styles.buttonText}>Confirm & Start Plan</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <TouchableOpacity 
+            style={styles.stopGoalButton} 
+            onPress={() => {
+              // Clear race goal data
+              updateSettings({
+                ...settings,
+                raceGoal: undefined,
+                fitnessLevel: undefined
+              });
+              handleResetAndSetNewGoal();
+            }}
+          >
+            <Text style={styles.stopGoalText}>Stop Goal</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    );
+  }
+  
+  if (step === 'selectFitness') {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContentContainer}>
+        <HeaderSafeArea />
+        {renderHeader('Set Your Fitness Goals')}
+        <Text style={styles.subtitle}>Select your current fitness level:</Text>
+        {FITNESS_LEVELS.map(level => (
+          <TouchableOpacity
+            key={level.id}
+            style={[
+              styles.selectionCard,
+              flowFitnessLevel === level.id && styles.selectedCard
+            ]}
+            onPress={() => handleFitnessSelect(level.id)}
+          >
+            <Zap
+              size={24}
+              color={flowFitnessLevel === level.id ? 'white' : '#f97316'}
+              style={styles.cardIcon}
+            />
+            <View style={styles.cardTextContainer}>
+              <Text style={[
+                styles.selectionTitle,
+                flowFitnessLevel === level.id && styles.selectedText
+              ]}>
+                {level.name}
+              </Text>
+              <Text style={[
+                styles.selectionDescription,
+                flowFitnessLevel === level.id && styles.selectedTextSecondary
+              ]}>
+                {level.description}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    );
+  }
+
+  if (step === 'selectRaceType') {
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContentContainer}>
+        <HeaderSafeArea />
+        {renderHeader('Set Your Race Goal')}
+        <Text style={styles.subtitle}>Choose the race you're training for:</Text>
+        <RaceTypeSelector onSelect={handleRaceTypeSelect} selectedType={flowRaceType} />
+      </ScrollView>
+    );
+  }
+
+  if (step === 'viewPlan' || step === 'confirmed') {
+    return (
+      <ScrollView 
+        style={styles.container} 
+        contentContainerStyle={[styles.scrollContentContainer, { paddingBottom: 120 }]}
+      >
+        <HeaderSafeArea />
+        {renderHeader(step === 'confirmed' ? 'Training Plan Activated' : 'Review Training Plan')}
+        
+        {step === 'confirmed' ? (
+          <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 30 }}>
+            <CheckCircle size={60} color="#22c55e" />
+            <Text style={styles.confirmationTitle}>Plan Activated!</Text>
+            <Text style={styles.confirmationSubtitle}>
+              Your training plan is now set. Head to Workout Tracker to start your first run.
+            </Text>
+          </View>
+        ) : null}
+        
+        {flowFitnessLevel && flowRaceType ? (
+          <TrainingPlan 
+            fitnessLevel={flowFitnessLevel}
+            raceType={flowRaceType}
+            isConfirmed={step === 'confirmed'}
+            onReset={() => handleBackNavigation()} // Allow canceling plan
+          />
+        ) : null}
+        
         <View style={styles.buttonContainerFixed}>
-          {isViewingActiveSavedPlan ? (
-            <TouchableOpacity
-              style={[styles.button, styles.editButton, { flex: 1 } ]}
-              onPress={handleEditActiveGoal}
-            >
-              <Edit3 size={18} color="white" style={{marginRight: 8}} />
-              <Text style={styles.buttonText}>Edit Current Goal</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={[styles.button, styles.primaryButton, { flex: 1 } ]}
+          {step !== 'confirmed' && (
+            <TouchableOpacity 
+              style={[styles.button, styles.primaryButton, { flex: 1 }]}
               onPress={handleConfirmPlan}
             >
               <Text style={styles.buttonText}>Confirm & Start Plan</Text>
             </TouchableOpacity>
           )}
         </View>
+        <TouchableOpacity 
+          style={styles.stopGoalButton} 
+          onPress={() => {
+            // Clear race goal data
+            updateSettings({
+              ...settings,
+              raceGoal: undefined,
+              fitnessLevel: undefined
+            });
+            handleResetAndSetNewGoal();
+          }}
+        >
+          <Text style={styles.stopGoalText}>Stop Goal</Text>
+        </TouchableOpacity>
       </ScrollView>
     );
   }
   
   return (
     <View style={styles.centered}>
-        <Text style={styles.subtitle}>Loading goal settings...</Text>
+      <HeaderSafeArea />
+      <Text style={styles.subtitle}>Loading goal settings...</Text>
     </View>
   );
 };
@@ -199,7 +324,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
   },
   scrollContentContainer: {
-    paddingVertical: 16, // Consistent vertical padding for scrollable content
+    paddingTop: 24, // Consistent with SettingsScreen for front camera clearance
+    paddingBottom: 16,
     // paddingBottom: 100, // Adjusted per-screen if fixed button is present
   },
   centered: {
@@ -212,9 +338,11 @@ const styles = StyleSheet.create({
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 16,
     paddingVertical: 20,
     marginBottom: 10,
+    marginLeft: 40, // Add space for the back button on the left
   },
   backButton: {
     marginRight: 16,
@@ -276,7 +404,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     padding: 16,
     paddingTop: 24, // Give some space from plan content
-    backgroundColor: '#121212', 
+  },
+  fixedActionContainer: {
+    position: 'absolute',
+    bottom: 30,
+    left: 20,
+    right: 20,
+    flexDirection: 'column',
+    gap: 15,
+  },
+  stopGoalButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  stopGoalText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   button: {
     paddingVertical: 14,

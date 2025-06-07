@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import MapView, { Polyline } from 'react-native-maps';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { formatPaceDisplay, formatDistanceDisplay, formatDurationDisplay } from '../utils/units';
@@ -8,9 +8,10 @@ import { Calendar, MapPin, Clock, Zap, Heart, Flame, Edit3, TrendingUp, Chevrons
 
 interface WorkoutDetailProps {
   workout: WorkoutEntry;
+  onEditNotes?: (workoutId: string, currentNotes: string | undefined) => void;
 }
 
-const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
+const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) => {
   const { settings } = useUserSettings();
   const mapRef = useRef<MapView | null>(null);
 
@@ -50,7 +51,26 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
         <View style={styles.detailRow}>
           <Zap size={18} color="#f97316" style={styles.icon} />
           <Text style={styles.detailLabel}>Plan:</Text>
-          <Text style={styles.detailValue}>{workout.planName || 'General Workout'}</Text>
+          <Text style={styles.detailValue}>
+            {(() => {
+              // Format the plan name based on its type
+              if (!workout.planName || workout.planName === 'Free Run') {
+                return 'Free Run';
+              }
+              
+              // For race goals like 5k, 10k, etc.
+              if (workout.planName.toLowerCase() === '5k') return '5K';
+              if (workout.planName.toLowerCase() === '10k') return '10K';
+              if (workout.planName.toLowerCase() === 'half marathon') return 'Half Marathon';
+              if (workout.planName.toLowerCase() === 'full marathon') return 'Full Marathon';
+              
+              // For other plan names, capitalize each word
+              return workout.planName
+                .split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                .join(' ');
+            })()}
+          </Text>
         </View>
       </View>
 
@@ -97,9 +117,19 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
           <Text style={styles.detailLabel}>Avg Heart Rate:</Text>
           <Text style={styles.detailValue}>{workout.avgHeartRate != null && workout.avgHeartRate > 0 ? `${workout.avgHeartRate} bpm` : 'N/A'}</Text>
         </View>
-        <View style={[styles.detailRow, { marginTop: 8 }]}>
-          <Edit3 size={18} color="#a78bfa" style={styles.icon} />
-          <Text style={styles.detailLabel}>Notes:</Text>
+        <View style={[styles.detailRow, { marginTop: 8, justifyContent: 'space-between' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Edit3 size={18} color="#a78bfa" style={styles.icon} />
+            <Text style={styles.detailLabel}>Notes:</Text>
+          </View>
+          {onEditNotes && (
+            <TouchableOpacity 
+              onPress={() => onEditNotes(workout.id, workout.notes)}
+              style={styles.editButton}
+            >
+              <Text style={styles.editButtonText}>Edit Notes</Text>
+            </TouchableOpacity>
+          )}
         </View>
         <Text style={styles.notesText}>{workout.notes || 'No notes added.'}</Text>
       </View>
@@ -166,6 +196,17 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout }) => {
 const styles = StyleSheet.create({
   container: {
     // flex: 1, // Temporarily removed for testing modal display
+  },
+  editButton: {
+    backgroundColor: '#a855f7', // purple-600
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+  },
+  editButtonText: {
+    color: '#f9fafb', // gray-50
+    fontSize: 12,
+    fontWeight: '500',
   },
   contentContainer: {
     paddingVertical: 16,

@@ -66,14 +66,32 @@ export const useAudioCues = ({ settings: runSpecificSettings, isTracking }: UseA
     const distanceInConfiguredUnit = convertDistance(currentDistanceKm, effectiveSettings.distanceUnit);
     const intervalDistance = effectiveSettings.distanceInterval;
     
+    // Calculate the interval counts with more precision before flooring
     const currentIntervalCount = Math.floor(distanceInConfiguredUnit / intervalDistance);
     const lastIntervalCount = Math.floor(lastDistanceAnnouncement.current / intervalDistance);
+    
+    // Debug logging for distance tracking
+    console.log(
+      `AUDIO CUE DEBUG: distanceKm=${currentDistanceKm.toFixed(3)}, ` +
+      `unit=${effectiveSettings.distanceUnit}, ` +
+      `converted=${distanceInConfiguredUnit.toFixed(3)}, ` +
+      `interval=${intervalDistance}, ` +
+      `currentCount=${currentIntervalCount}, ` +
+      `lastCount=${lastIntervalCount}, ` +
+      `lastAnnounced=${lastDistanceAnnouncement.current.toFixed(3)}`
+    );
 
+    // Check if we've crossed an interval boundary
     if (currentIntervalCount > lastIntervalCount && currentIntervalCount > 0) {
+      // Use exact interval multiple for announcement
       const announcementDistance = currentIntervalCount * intervalDistance;
       const formattedDistance = formatDistance(announcementDistance, effectiveSettings.distanceUnit);
+      
+      console.log(`ANNOUNCING: ${formattedDistance} completed`);
       await speak(`${formattedDistance} completed`, 'medium');
-      lastDistanceAnnouncement.current = distanceInConfiguredUnit;
+      
+      // Store the exact distance we announced to avoid floating point issues
+      lastDistanceAnnouncement.current = announcementDistance; 
     }
   }, [isLoadingSettings, getEffectiveSettings, isTracking, convertDistance, formatDistance, speak]);
 

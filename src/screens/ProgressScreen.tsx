@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TrendingUp, Target, Calendar, Award, Clock, MapPin } from 'lucide-react-native';
 import { useUserSettings } from '../hooks/useUserSettings'; // Adjusted path
+import { HeaderSafeArea } from '../components/HeaderSafeArea';
 
 const ProgressScreen: React.FC = () => { 
   const { settings, isLoadingSettings } = useUserSettings();
@@ -41,6 +42,7 @@ const ProgressScreen: React.FC = () => {
   if (isLoadingSettings) {
     return (
       <View style={styles.centeredMessageContainer}>
+        <HeaderSafeArea />
         <Text style={styles.noPlanTitle}>Loading settings...</Text>
       </View>
     );
@@ -49,6 +51,7 @@ const ProgressScreen: React.FC = () => {
   if (!currentPlan) {
     return (
       <View style={styles.centeredMessageContainer}>
+        <HeaderSafeArea />
         <View style={styles.card}>
           <Text style={styles.noPlanTitle}>No Active Training Plan</Text>
           <Text style={styles.noPlanSubtitle}>
@@ -61,6 +64,7 @@ const ProgressScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <HeaderSafeArea />
       <View style={styles.headerTextContainer}>
         <Text style={styles.headerTitle}>Your Progress</Text>
         <Text style={styles.headerSubtitle}>

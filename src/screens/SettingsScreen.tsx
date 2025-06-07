@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View, ActivityIndicator, TouchableOpacity
 
 import AudioCueSettings from '../components/AudioCueSettings';
 import { useUserSettings, UserSettings } from '../hooks/useUserSettings';
+import { HeaderSafeArea } from '../components/HeaderSafeArea';
 
 const SettingsScreen = () => {
   const {
@@ -15,6 +16,7 @@ const SettingsScreen = () => {
   if (isLoadingSettings) {
     return (
       <View style={[styles.container, styles.centered]}>
+        <HeaderSafeArea />
         <ActivityIndicator size="large" color="#FFA500" />
         <Text style={styles.loadingText}>Loading Settings...</Text>
       </View>
@@ -23,6 +25,7 @@ const SettingsScreen = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      <HeaderSafeArea />
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>Settings</Text>
       </View>

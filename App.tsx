@@ -12,6 +12,8 @@ import HistoryScreen from './src/screens/HistoryScreen';
 import RaceGoalScreen from './src/screens/RaceGoalScreen';
 import LogActivityScreen from './src/screens/LogActivityScreen'; // Import LogActivityScreen
 import { StatusBar } from 'expo-status-bar'; // Keep StatusBar if desired
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text } from 'react-native'; // Added Text import
 import { initializeDatabase } from './src/utils/Database'; // Import database initializer
 
 // Define the type for the stack navigator route params
@@ -37,6 +39,61 @@ export type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const queryClient = new QueryClient();
 
+// New component to host Navigation and use insets
+const AppNavigation = () => {
+  const insets = useSafeAreaInsets(); // Correctly called within a child of SafeAreaProvider
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator 
+        initialRouteName="Index" 
+        screenOptions={{
+          headerShown: true,
+          headerTransparent: true,
+          headerStyle: { backgroundColor: 'transparent' },
+          headerTitle: '', // Remove header titles globally
+          headerBackTitle: '', // Remove back button label text
+          headerTintColor: '#ffffff', // Make back arrow white
+        }}
+      >
+        <Stack.Screen
+          name="Index"
+          component={IndexScreen}
+        />
+        <Stack.Screen
+          name="NotFound"
+          component={NotFoundScreen}
+        />
+        <Stack.Screen
+          name="WorkoutTracker"
+          component={WorkoutTracker}
+        />
+        <Stack.Screen
+          name="Settings"
+          component={SettingsScreen}
+        />
+        <Stack.Screen
+          name="Progress"
+          component={ProgressScreen}
+        />
+        <Stack.Screen
+          name="History"
+          component={HistoryScreen}
+        />
+        <Stack.Screen
+          name="RaceGoal"
+          component={RaceGoalScreen}
+        />
+        <Stack.Screen
+          name="LogActivity"
+          component={LogActivityScreen}
+        />
+        {/* We will add more screens here later */}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
 export default function App() {
   useEffect(() => {
     const initDB = async () => {
@@ -51,53 +108,11 @@ export default function App() {
   }, []); // Empty dependency array ensures this runs only once on mount
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName="Index" screenOptions={{ headerShown: false }}>
-          <Stack.Screen
-            name="Index"
-            component={IndexScreen}
-            options={{ title: 'Rhythmk' }} // Example title
-          />
-          <Stack.Screen
-            name="NotFound"
-            component={NotFoundScreen}
-            options={{ title: 'Page Not Found' }}
-          />
-          <Stack.Screen
-            name="WorkoutTracker"
-            component={WorkoutTracker}
-            options={{ title: 'Track Workout' }} // Example title for WorkoutTracker
-          />
-          <Stack.Screen
-            name="Settings"
-            component={SettingsScreen}
-            options={{ title: 'Settings' }}
-          />
-          <Stack.Screen
-            name="Progress"
-            component={ProgressScreen}
-            options={{ title: 'Progress' }}
-          />
-          <Stack.Screen
-            name="History"
-            component={HistoryScreen}
-            options={{ title: 'History' }}
-          />
-          <Stack.Screen
-            name="RaceGoal"
-            component={RaceGoalScreen}
-            options={{ title: 'Race Goal' }}
-          />
-          <Stack.Screen
-            name="LogActivity"
-            component={LogActivityScreen}
-            options={{ title: 'Log Activity' }}
-          />
-          {/* We will add more screens here later */}
-        </Stack.Navigator>
-      </NavigationContainer>
-      <StatusBar style="auto" />
-    </QueryClientProvider>
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <AppNavigation />
+        <StatusBar style="auto" />
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

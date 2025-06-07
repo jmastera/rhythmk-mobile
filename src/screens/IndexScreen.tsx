@@ -5,6 +5,9 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App'; // Adjust path if App.tsx is elsewhere
 import { useUserSettings } from '../hooks/useUserSettings'; // Assuming path is correct
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getRaceColor } from '../utils/raceColors';
+import { HeaderSafeArea } from '../components/HeaderSafeArea';
 
 // Assuming the logo is in assets/rhythmk-logo-trans.png
 const logo = require('../../assets/rhythmk-logo-trans.png');
@@ -24,6 +27,7 @@ type IndexScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, '
 const IndexScreen = () => {
   const navigation = useNavigation<IndexScreenNavigationProp>();
   const { settings } = useUserSettings();
+  const insets = useSafeAreaInsets();
   // Determine if there's an active plan based on user settings
   // This logic might need adjustment based on how 'raceGoal' and 'fitnessLevel' are stored
   const hasActivePlan = Boolean(settings.raceGoal && settings.raceGoal.type && settings.fitnessLevel);
@@ -48,6 +52,21 @@ const IndexScreen = () => {
     const titleStyle = item.styleType === 'primary' ? styles.primaryTitleText : styles.secondaryTitleText;
     const descStyle = item.styleType === 'primary' ? styles.primaryDescriptionText : styles.secondaryDescriptionText;
     const IconComponent = item.icon;
+
+    // Define the race goal badge content and color if applicable
+    const showRaceGoalBadge = item.id === 'RaceGoal' && hasActivePlan && settings.raceGoal?.type;
+    let raceGoalText = '';
+    // Get the race-specific color
+    const raceColor = showRaceGoalBadge && settings.raceGoal?.type ? getRaceColor(settings.raceGoal.type) : null;
+    if (showRaceGoalBadge && settings.raceGoal?.type) {
+      switch (settings.raceGoal.type) {
+        case '5k': raceGoalText = '5K'; break;
+        case '10k': raceGoalText = '10K'; break;
+        case 'half-marathon': raceGoalText = 'Half'; break;
+        case 'marathon': raceGoalText = 'Full'; break;
+        default: raceGoalText = 'Race'; break;
+      }
+    }
 
     return (
       <TouchableOpacity 
@@ -93,6 +112,11 @@ const IndexScreen = () => {
       >
         <View style={[styles.iconContainerBase, iconStyle]}>
           <IconComponent color={item.styleType === 'primary' ? "#FFFFFF" : "#3b82f6"} size={28} />
+          {showRaceGoalBadge && (
+            <View style={[styles.goalBadge, raceColor ? { backgroundColor: raceColor } : null]}>
+              <Text style={styles.goalBadgeText}>{raceGoalText}</Text>
+            </View>
+          )}
         </View>
         <View style={styles.textContainer}>
           <Text style={[styles.titleTextBase, titleStyle]}>{item.title}</Text>
@@ -103,9 +127,10 @@ const IndexScreen = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContentContainer} style={styles.scrollView}>
-        <View style={styles.logoContainer}>
+    <View style={{ flex: 1 }}>
+      <HeaderSafeArea />
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContentContainer}>
+        <View style={[styles.logoContainer, { paddingVertical: 10 }]}>
           <Image source={logo} style={styles.logo} resizeMode="contain" />
         </View>
 
@@ -156,7 +181,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     paddingVertical: 20,
-    backgroundColor: '#1e3a8a', // A blueish color, similar to blue-900
+    backgroundColor: 'transparent', // Changed to transparent from blueish color
     marginBottom: 10,
   },
   logo: {
@@ -208,6 +233,30 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     alignItems: 'center',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  goalBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#f97316',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    minWidth: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  goalBadgeText: {
+    color: 'white',
+    fontSize: 11,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
   titleTextBase: {
     fontSize: 17, // Unified title size

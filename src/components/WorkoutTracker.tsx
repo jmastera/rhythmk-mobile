@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, AppState, Platform, TextInput } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../../App'; // Adjust path if App.tsx is elsewhere
 import * as Location from 'expo-location';
 import { Settings, Clock, MapPin, Zap, Target, Play, Pause, Square } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import AudioCueSettings from './AudioCueSettings';
+import * as Speech from 'expo-speech';
 import { useAudioCues } from '../hooks/useAudioCues';
 import { AudioCueSettingsData, useUserSettings } from '../hooks/useUserSettings';
 import { WorkoutEntry, WORKOUT_HISTORY_KEY, Split } from '../types/history';
 import { formatDistanceDisplay, formatPaceDisplay, decimalMinutesToTime, formatDurationDisplay } from '../utils/units';
+import { getRaceColor } from '../utils/raceColors';
+import { HeaderSafeArea } from './HeaderSafeArea';
 
 const DEFAULT_USER_WEIGHT_KG = 70; // Default user weight in kilograms for calorie estimation
 const SPLIT_DISTANCE_KM = 1; // Define 1km as the distance for each split
@@ -44,10 +48,13 @@ const calculatePaceMinPerKm = (distanceKm: number, durationSeconds: number): num
 };
 
 const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplete }) => {
+  const insets = useSafeAreaInsets();
   const currentPlan = route.params?.currentPlan;
 
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isCountingDown, setIsCountingDown] = useState(false);
+  const [countdownSeconds, setCountdownSeconds] = useState(5); // 5 second countdown
   const [duration, setDuration] = useState(0); // in seconds
   const [distance, setDistance] = useState(0); // in km
   const [currentPace, setCurrentPace] = useState<number | null>(null); // min/km as decimal
@@ -63,9 +70,51 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
   const [timeAtLastSplitSeconds, setTimeAtLastSplitSeconds] = useState(0);
   
   const [showAudioSettings, setShowAudioSettings] = useState(false);
+  
+  // Play countdown beep using speech synthesis
+  const playCountdownSound = async (countdownValue: number) => {
+    try {
+      // Stop any currently speaking audio
+      await Speech.stop();
+      
+      // Different sounds for different countdown values
+      if (countdownValue === 1) {
+        // Final beep - use a longer sound or say "Go"
+        await Speech.speak('Go', {
+          rate: 0.8,
+          pitch: 1.2,
+          volume: 1.0,
+        });
+      } else {
+        // Regular countdown beep - just say the number
+        await Speech.speak(countdownValue.toString(), {
+          rate: 1.0,
+          pitch: 1.0,
+          volume: 1.0,
+        });
+      }
+    } catch (error) {
+      console.log('Error playing countdown sound:', error);
+    }
+  };
   const { settings, updateAudioCueDefaults, isLoadingSettings } = useUserSettings();
   // Initialize runAudioSettings with current user defaults, or app defaults if not loaded
   const [runAudioSettings, setRunAudioSettings] = useState<AudioCueSettingsData>(settings.audioCueDefaults);
+  
+  // Helper function to format race type for display
+  const formatRaceType = (type: string): string => {
+    switch(type) {
+      case '5k': return '5K';
+      case '10k': return '10K';
+      case 'half-marathon': return 'Half Marathon';
+      case 'marathon': return 'Marathon';
+      default: return type.charAt(0).toUpperCase() + type.slice(1);
+    }
+  };
+
+  // Refs for state values needed in callbacks to avoid stale closures
+  const distanceRef = useRef(distance);
+  const durationRef = useRef(duration);
 
   useEffect(() => {
     if (!isLoadingSettings) {
@@ -86,6 +135,14 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
+  useEffect(() => {
+    distanceRef.current = distance;
+  }, [distance]);
+
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
+
   const {
     checkDistanceCue,
     checkPaceCue,
@@ -98,6 +155,24 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const hasAnnouncedStart = useRef(false);
   const appState = useRef(AppState.currentState);
+
+  // useEffect for Average Pace Calculation
+  useEffect(() => {
+    if (distance > 0 && duration > 0) {
+      const newAvgPace = calculatePaceMinPerKm(distance, duration);
+      
+      // Only update average pace if it's within reasonable limits (1-30 min/km)
+      if (newAvgPace !== null && newAvgPace >= 1 && newAvgPace <= 30) {
+        console.log(`AVG PACE EFFECT DEBUG: distance=${distance.toFixed(3)}, duration=${duration}, newAvgPace=${newAvgPace.toFixed(2)}`);
+        setAvgPace(newAvgPace);
+      } else {
+        console.log(`AVG PACE EFFECT DEBUG: Discarded unrealistic average pace calculation: ${newAvgPace}`);
+      }
+    } else {
+      // Reset avgPace if conditions aren't met (e.g., at the start or after reset)
+      setAvgPace(null);
+    }
+  }, [distance, duration]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
@@ -112,6 +187,38 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
     };
   }, []);
 
+  // Countdown timer effect
+  useEffect(() => {
+    let countdownInterval: NodeJS.Timeout | null = null;
+    
+    if (isCountingDown && countdownSeconds > 0) {
+      // Play sound immediately when each countdown second starts
+      playCountdownSound(countdownSeconds);
+      
+      countdownInterval = setInterval(() => {
+        setCountdownSeconds(prev => {
+          // Will be decremented to this value
+          const nextValue = prev - 1;
+          return nextValue;
+        });
+      }, 1000);
+    } else if (isCountingDown && countdownSeconds === 0) {
+      // Countdown finished, start actual tracking
+      setIsCountingDown(false);
+      setIsTracking(true);
+      
+      // Reset countdown for next time
+      setCountdownSeconds(5);
+    }
+    
+    return () => {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+      }
+    };
+  }, [isCountingDown, countdownSeconds]);
+  
+  // Duration timer effect
   useEffect(() => {
     if (isTracking && !isPaused) {
       if (!hasAnnouncedStart.current) {
@@ -133,6 +240,12 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
     };
   }, [isTracking, isPaused, announceWorkoutStart]);
 
+  const initiateCountdown = () => {
+    // Start the countdown
+    setIsCountingDown(true);
+    setCountdownSeconds(5);
+  };
+  
   const startTracking = async () => {
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -161,100 +274,151 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
         (newLocation) => {
           if (!isTrackingRef.current || isPausedRef.current) return;
 
-          const { latitude, longitude, altitude } = newLocation.coords;
+          const { latitude, longitude, altitude, speed, accuracy } = newLocation.coords;
           const timestamp = newLocation.timestamp;
 
-          let segmentDistanceKm = 0;
-          setCoordinates((prevCoords) => {
-            const newCoordsList = [...prevCoords, { latitude, longitude, altitude, timestamp }];
-            if (newCoordsList.length > 1) {
-              const prevPoint = newCoordsList[newCoordsList.length - 2];
-              segmentDistanceKm = calculateDistance(
-                prevPoint.latitude,
-                prevPoint.longitude,
-                latitude,
-                longitude
-              );
-              setDistance((prevDistance) => prevDistance + segmentDistanceKm);
-
-              // Calculate Elevation Gain/Loss
-              if (prevPoint.altitude != null && altitude != null) {
-                const altitudeDifference = altitude - prevPoint.altitude;
-                if (altitudeDifference > 0) {
-                  setTotalElevationGain((prevGain) => prevGain + altitudeDifference);
-                } else if (altitudeDifference < 0) {
-                  setTotalElevationLoss((prevLoss) => prevLoss + Math.abs(altitudeDifference));
-                }
-              }
-            }
-            return newCoordsList;
-          });
-
-          setLastPosition(newLocation.coords);
-
-          // Pace calculations
-          // 'distance' state is cumulative and in KM.
-          // 'duration' state is cumulative and in seconds.
-          const currentTotalDistance = distance + segmentDistanceKm; // Best estimate of current total distance
-
-          // Update Average Pace
-          if (currentTotalDistance > 0 && duration > 0) {
-            setAvgPace(calculatePaceMinPerKm(currentTotalDistance, duration));
+          // Filter out low accuracy GPS updates
+          if (accuracy != null && accuracy > 20) { // 20 meters is a reasonable threshold for accuracy
+            console.log(`Skipping update due to poor accuracy: ${accuracy}m`);
+            return;
           }
 
-          // Update Current Pace
-          if (lastLocationTimestampRef.current) { // Simplified condition
-            const timeDiffSeconds = (timestamp - lastLocationTimestampRef.current) / 1000;
-            if (timeDiffSeconds > 0 && segmentDistanceKm > 0) {
-              setCurrentPace(calculatePaceMinPerKm(segmentDistanceKm, timeDiffSeconds));
-            } else if (timeDiffSeconds > 0 && segmentDistanceKm === 0) {
-               setCurrentPace(null); // Or a very high number to indicate no pace
+          let calculatedSegmentDistanceKm = 0;
+
+          if (lastPosition) {
+            calculatedSegmentDistanceKm = calculateDistance(
+              lastPosition.latitude,
+              lastPosition.longitude,
+              latitude,
+              longitude
+            );
+            
+            // Apply minimum threshold to filter out GPS jitter (2 meters)
+            const MIN_DISTANCE_THRESHOLD = 0.002;
+            if (calculatedSegmentDistanceKm > MIN_DISTANCE_THRESHOLD) {
+                setDistance((prevDistance) => prevDistance + calculatedSegmentDistanceKm);
+            } else {
+                calculatedSegmentDistanceKm = 0; // Reset to zero if under threshold
+                console.log('GPS jitter detected, distance increment ignored');
+            }
+
+            // Calculate Elevation Gain/Loss
+            if (lastPosition.altitude != null && altitude != null) {
+              const altitudeDifference = altitude - lastPosition.altitude;
+              if (altitudeDifference > 0) {
+                setTotalElevationGain((prevGain) => prevGain + altitudeDifference);
+              } else if (altitudeDifference < 0) {
+                setTotalElevationLoss((prevLoss) => prevLoss + Math.abs(altitudeDifference));
+              }
             }
           }
           
-          lastLocationTimestampRef.current = timestamp; 
+          setCoordinates((prevCoords) => [...prevCoords, { latitude, longitude, altitude, timestamp }]);
+          setLastPosition(newLocation.coords); // Update lastPosition *after* using it
+
+          // --- Pace Calculations --- 
+          // Average Pace is now calculated in a useEffect hook
+
+          // Update Current Pace with improved filtering
+          let newCurrentPace = null;
+          
+          // Minimum movement speed (0.3 m/s is roughly 1 km/h)
+          const MIN_SIGNIFICANT_SPEED = 0.3;
+          // Minimum segment distance for pace calculation (5 meters)
+          const MIN_PACE_DISTANCE = 0.005;
+          
+          // Method 1: Use speed directly from GPS if available and significant
+          if (speed !== null && speed >= MIN_SIGNIFICANT_SPEED) {
+            newCurrentPace = 1000 / speed / 60; // Convert m/s to min/km
+            
+            // Apply sanity check for extremely slow/fast paces (1-30 min/km)
+            if (newCurrentPace < 1 || newCurrentPace > 30) {
+              newCurrentPace = null;
+              console.log(`CUR PACE DEBUG: Discarded unrealistic pace from speed=${speed.toFixed(2)} m/s`);
+            } else {
+              console.log(`CUR PACE DEBUG: from speed=${speed.toFixed(2)} m/s, newCurrentPace=${newCurrentPace ? newCurrentPace.toFixed(2) : null}`);
+            }
+          } 
+          // Method 2: Calculate from segment distance and time
+          else if (lastLocationTimestampRef.current && calculatedSegmentDistanceKm >= MIN_PACE_DISTANCE) {
+            const timeDiffSeconds = (timestamp - lastLocationTimestampRef.current) / 1000;
+            
+            // Ensure we have a meaningful time difference (at least 1 second)
+            if (timeDiffSeconds >= 1) {
+                newCurrentPace = calculatePaceMinPerKm(calculatedSegmentDistanceKm, timeDiffSeconds);
+                
+                // Apply sanity check for paces
+                if (newCurrentPace !== null && (newCurrentPace < 1 || newCurrentPace > 30)) {
+                  newCurrentPace = null;
+                  console.log(`CUR PACE DEBUG: Discarded unrealistic calculated pace`);
+                } else {
+                  console.log(`CUR PACE DEBUG: from calc: segmentDist=${calculatedSegmentDistanceKm.toFixed(3)}, timeDiff=${timeDiffSeconds.toFixed(1)}, pace=${newCurrentPace ? newCurrentPace.toFixed(2) : null}`);
+                }
+            } else {
+                console.log(`CUR PACE DEBUG: Time difference too small: ${timeDiffSeconds.toFixed(1)}s`);
+            }
+          } else {
+            console.log(`CUR PACE DEBUG: Insufficient data for pace calculation. Speed=${speed?.toFixed(2) || 'null'}, segment=${calculatedSegmentDistanceKm.toFixed(3)}`);
+          }
+          setCurrentPace(newCurrentPace);
+          
+          lastLocationTimestampRef.current = timestamp;
+
+          // --- Other Calculations (Cues, Calories, Splits) ---
+          // Calculate the total distance including the current segment for immediate use in cues/calories
+          const updatedTotalDistance = distanceRef.current + calculatedSegmentDistanceKm;
 
           // Pace Cues
           if (runAudioSettings.paceEnabled) {
             const displayUnitForAudio = runAudioSettings.distanceUnit === 'miles' ? 'mi' : runAudioSettings.distanceUnit;
-            const formattedCurrentPace = currentPace !== null ? formatPaceDisplay(currentPace, displayUnitForAudio) : '--:--';
-            const formattedAvgPace = avgPace !== null ? formatPaceDisplay(avgPace, displayUnitForAudio) : '--:--';
-            checkPaceCue(formattedCurrentPace, formattedAvgPace);
+            // Use newCurrentPace (calculated in this cycle) and avgPace (state from previous cycle's update) for cues
+            const formattedCurrentPaceForCue = newCurrentPace !== null ? formatPaceDisplay(newCurrentPace, displayUnitForAudio) : '--:--';
+            const formattedAvgPaceForCue = avgPace !== null ? formatPaceDisplay(avgPace, displayUnitForAudio) : '--:--'; // Changed newAvgPace to avgPace (state)
+            checkPaceCue(formattedCurrentPaceForCue, formattedAvgPaceForCue);
           }
 
           // Distance Cues
-          checkDistanceCue(currentTotalDistance);
+          // Convert to correct unit in case settings use miles
+          const displayUnitForAudio = runAudioSettings.distanceUnit === 'miles' ? 'mi' : runAudioSettings.distanceUnit;
+          const convertedDistance = displayUnitForAudio === 'mi' ? updatedTotalDistance * 0.621371 : updatedTotalDistance;
+          
+          // Log distance for debugging
+          console.log(`DISTANCE CUE DEBUG: Raw=${updatedTotalDistance.toFixed(3)}km, Converted=${convertedDistance.toFixed(3)}${displayUnitForAudio}, Interval=${runAudioSettings.distanceInterval}`);
+          
+          // Send distance update for audio cue checks
+          checkDistanceCue(updatedTotalDistance);
 
           // Calorie Estimation
-          if (currentTotalDistance > 0) {
-            const calories = DEFAULT_USER_WEIGHT_KG * currentTotalDistance * 1.036;
+          if (updatedTotalDistance > 0) { // Changed currentTotalDistance to updatedTotalDistance
+            const calories = DEFAULT_USER_WEIGHT_KG * updatedTotalDistance * 1.036; // Changed currentTotalDistance to updatedTotalDistance
             setEstimatedCalories(calories);
           }
 
-          // Split Tracking
-          if (segmentDistanceKm > 0) {
+          // Split Tracking (uses calculatedSegmentDistanceKm)
+          if (calculatedSegmentDistanceKm > 0) {
             setDistanceSinceLastSplitKm(prevDistSinceSplit => {
-              const newDistSinceSplit = prevDistSinceSplit + segmentDistanceKm;
+              const newDistSinceSplit = prevDistSinceSplit + calculatedSegmentDistanceKm;
               if (newDistSinceSplit >= SPLIT_DISTANCE_KM) {
-                const currentTotalDuration = duration; // Get the most up-to-date duration
-                const splitDurationSeconds = currentTotalDuration - timeAtLastSplitSeconds;
+                const totalDurationForSplit = durationRef.current;
+                const splitDurationSeconds = totalDurationForSplit - timeAtLastSplitSeconds;
                 const numericSplitPace = calculatePaceMinPerKm(SPLIT_DISTANCE_KM, splitDurationSeconds);
 
-                const newSplit: Split = {
+                const newSplitData: Split = {
                   splitNumber: splits.length + 1,
-                  distance: SPLIT_DISTANCE_KM * 1000, // Store split distance in meters
+                  distance: SPLIT_DISTANCE_KM * 1000,
                   duration: splitDurationSeconds,
-                  pace: numericSplitPace !== null ? decimalMinutesToTime(numericSplitPace) : '--:--', // Format to MM:SS string for storage
+                  pace: numericSplitPace !== null ? decimalMinutesToTime(numericSplitPace) : '--:--',
                 };
-                setSplits(prevSplits => [...prevSplits, newSplit]);
+                setSplits(prevSplits => [...prevSplits, newSplitData]);
 
-                // Announce split (using audio cue settings for unit)
                 const formattedPaceForAnnouncement = numericSplitPace !== null 
-                  ? formatPaceDisplay(numericSplitPace, runAudioSettings.distanceUnit === 'miles' ? 'mi' : runAudioSettings.distanceUnit) 
-                  : 'Pace not available';
-                announceSplit(newSplit.splitNumber, formattedPaceForAnnouncement);
-                setTimeAtLastSplitSeconds(currentTotalDuration);
-                return newDistSinceSplit - SPLIT_DISTANCE_KM; // Carry over excess distance
+                  ? formatPaceDisplay(numericSplitPace, runAudioSettings.distanceUnit === 'miles' ? 'mi' : runAudioSettings.distanceUnit)
+                  : "pace unavailable";
+                announceSplit(newSplitData.splitNumber, formattedPaceForAnnouncement);
+
+                setDistanceSinceLastSplitKm(newDistSinceSplit % SPLIT_DISTANCE_KM);
+                setTimeAtLastSplitSeconds(totalDurationForSplit);
+                return newDistSinceSplit % SPLIT_DISTANCE_KM;
               }
               return newDistSinceSplit;
             });
@@ -289,9 +453,17 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
     const formattedAvgPaceForAnnouncement = avgPace !== null 
       ? formatPaceDisplay(avgPace, audioCueUnitForPace) 
       : 'Not available'; // useAudioCues's formatPace will handle this for speech
+    
     announceWorkoutEnd(duration, distance, formattedAvgPaceForAnnouncement);
 
     // --- Save Workout Data --- 
+    // Get the proper plan name from user settings race goal or passed in plan
+    const planDisplay = settings.raceGoal?.type 
+      ? settings.raceGoal.type.charAt(0).toUpperCase() + settings.raceGoal.type.slice(1) // Capitalize race goal type
+      : currentPlan?.raceType 
+      ? currentPlan.raceType
+      : 'Free Run';
+    
     const newWorkoutEntry: WorkoutEntry = {
       id: new Date().getTime().toString(),
       date: new Date().toISOString(),
@@ -299,7 +471,7 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
       distance: Math.round(distance * 1000), // Convert km to meters and round
       avgPace: avgPace === null ? undefined : avgPace, // Convert null to undefined for storage
       coordinates: coordinates,
-      planName: currentPlan?.raceType || 'Free Run',
+      planName: planDisplay, // Use the properly formatted plan name
       totalElevationGain: Math.round(totalElevationGain),
       totalElevationLoss: Math.round(totalElevationLoss),
       notes: currentNotes, // Save current notes
@@ -313,7 +485,7 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
       const existingHistory: WorkoutEntry[] = existingHistoryJson ? JSON.parse(existingHistoryJson) : [];
       existingHistory.push(newWorkoutEntry);
       await AsyncStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(existingHistory));
-      } catch (e) {
+    } catch (e) {
       console.error('Failed to save workout history:', e);
       // Optionally, inform the user about the failure
     }
@@ -377,21 +549,19 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={[styles.contentContainer, { paddingBottom: insets.bottom }]}>
+      <HeaderSafeArea />
       <View style={styles.headerSection}>
-        <View>
-          <Text style={styles.title}>
-            {isTracking ? 'Tracking Your Run' : 'Ready to Run?'}
-          </Text>
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>Workout Tracker</Text>
           <Text style={styles.subtitle}>
-            {currentPlan
-              ? `Training for ${currentPlan.raceType.toUpperCase()} • ${currentPlan.fitnessLevel} level`
+            {settings.raceGoal && settings.fitnessLevel
+              ? `Training for ${formatRaceType(settings.raceGoal.type)} • ${settings.fitnessLevel} level`
               : 'Free run mode'}
           </Text>
         </View>
-        <TouchableOpacity onPress={() => setShowAudioSettings(true)} style={styles.settingsButton}>
-          <Settings size={24} color="#FFA500" />
-        </TouchableOpacity>
       </View>
 
       {(runAudioSettings.distanceEnabled || runAudioSettings.paceEnabled) && !isLoadingSettings && (
@@ -416,22 +586,22 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
       {/* Stats Display */}
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
-          <Clock size={28} color="#FFA500" style={styles.statIcon} />
+          <Clock size={28} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
           <Text style={styles.statValue}>{formatDurationDisplay(duration)}</Text>
           <Text style={styles.statLabel}>Duration</Text>
         </View>
         <View style={styles.statCard}>
-          <MapPin size={24} color="#FFA500" style={styles.statIcon} />
+          <MapPin size={24} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
           <Text style={styles.statValue}>{formatDistanceDisplay(distance * 1000, settings.displayUnit)}</Text>
           <Text style={styles.statLabel}>Distance</Text>
         </View>
         <View style={styles.statCard}>
-          <Zap size={24} color="#FFA500" style={styles.statIcon} />
+          <Zap size={24} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
           <Text style={styles.statValue}>{currentPace !== null ? formatPaceDisplay(currentPace, settings.displayUnit) : '--:--'}</Text>
           <Text style={styles.statLabel}>Current Pace</Text>
         </View>
         <View style={styles.statCard}>
-          <Zap size={24} color="#FFA500" style={styles.statIcon} />
+          <Zap size={24} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
           <Text style={styles.statValue}>{avgPace !== null ? formatPaceDisplay(avgPace, settings.displayUnit) : '--:--'}</Text>
           <Text style={styles.statLabel}>Avg Pace</Text>
         </View>
@@ -455,11 +625,19 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
 
       {/* Control Buttons */}
       <View style={styles.controlsSection}>
-        {!isTracking ? (
-          <TouchableOpacity style={[styles.button, styles.startButton]} onPress={startTracking}>
-            <Play size={24} color="#FFF" style={styles.buttonIcon} />
-            <Text style={styles.buttonText}>Start Run</Text>
-          </TouchableOpacity>
+        {isCountingDown ? (
+        <View style={[styles.button, styles.countdownButton]}>
+          <Text style={styles.countdownText}>{countdownSeconds}</Text>
+          <Text style={styles.buttonText}>Starting soon...</Text>
+        </View>
+      ) : !isTracking ? (
+        <TouchableOpacity
+          onPress={initiateCountdown}
+          style={[styles.button, styles.startButton, settings.raceGoal && { backgroundColor: getRaceColor(settings.raceGoal.type) }]}
+        >
+          <Play size={24} color="#FFF" style={styles.buttonIcon} />
+          <Text style={styles.buttonText}>Start Run</Text>
+        </TouchableOpacity>
         ) : (
           <View style={styles.trackingButtonsContainer}>
             <TouchableOpacity
@@ -477,11 +655,22 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
         )}
       </View>
 
+      {/* Settings Button - only shown when not tracking */}
+      {!isTracking && (
+        <TouchableOpacity 
+          onPress={() => setShowAudioSettings(true)} 
+          style={styles.settingsButtonContainer}
+        >
+          <Settings size={22} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} />
+          <Text style={styles.settingsButtonText}>Audio Settings</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Coaching Tips */}
       {isTracking && !isPaused && (
         <View style={styles.coachTipCard}>
           <View style={styles.coachTipHeader}>
-            <Target size={20} color="#FFA500" style={styles.buttonIcon} />
+            <Target size={20} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.buttonIcon} />
             <Text style={styles.coachTipTitle}>Coach Tips</Text>
           </View>
           <Text style={styles.coachTipText}>
@@ -509,9 +698,11 @@ const styles = StyleSheet.create({
   },
   headerSection: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    justifyContent: 'center',
     marginBottom: 20,
+  },
+  headerContent: {
+    alignItems: 'center',
   },
   title: {
     fontSize: 26,
@@ -525,6 +716,23 @@ const styles = StyleSheet.create({
   },
   settingsButton: {
     padding: 8,
+  },
+  settingsButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginVertical: 10,
+    backgroundColor: 'rgba(255, 165, 0, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 165, 0, 0.3)',
+  },
+  settingsButtonText: {
+    color: '#FFA500',
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '500',
   },
   audioCuesInfoSection: {
     flexDirection: 'row',
@@ -600,6 +808,15 @@ const styles = StyleSheet.create({
   },
   halfButton: {
     width: '48%',
+  },
+  countdownButton: {
+    backgroundColor: '#FF9800', // Orange
+  },
+  countdownText: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#FFF',
+    marginBottom: 5,
   },
   pauseButton: {
     backgroundColor: '#FFC107', // Amber

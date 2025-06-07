@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { ArrowRight, MapPin, Mountain, Target, Trophy } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { Target, MapPin, Mountain, Trophy, ArrowRight } from 'lucide-react-native';
+import { raceColors } from '../utils/raceColors';
 
 interface RaceTypeSelectorProps {
   onSelect: (raceId: string) => void;
@@ -16,7 +17,7 @@ const races = [
     duration: '6-8 weeks',
     difficulty: 'Beginner Friendly',
     description: 'Perfect first race goal',
-    color: '#22c55e', // green-500
+    color: raceColors['5k'],
   },
   {
     id: '10k',
@@ -26,7 +27,7 @@ const races = [
     duration: '8-10 weeks',
     difficulty: 'Intermediate',
     description: 'Step up your distance',
-    color: '#3b82f6', // blue-500
+    color: raceColors['10k'],
   },
   {
     id: 'half-marathon',
@@ -36,7 +37,7 @@ const races = [
     duration: '12-16 weeks',
     difficulty: 'Challenging',
     description: 'Serious endurance goal',
-    color: '#f97316', // orange-500
+    color: raceColors['half-marathon'],
   },
   {
     id: 'marathon',
@@ -46,7 +47,7 @@ const races = [
     duration: '16-20 weeks',
     difficulty: 'Elite Challenge',
     description: 'Ultimate running achievement',
-    color: '#ef4444', // red-500
+    color: raceColors['marathon'],
   },
 ];
 
@@ -70,7 +71,7 @@ const RaceTypeSelector: React.FC<RaceTypeSelectorProps> = ({ onSelect, currentRa
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
                 <View style={[styles.iconContainer, { backgroundColor: race.color }]}>
-                  <IconComponent size={28} color={currentRaceTypeId === race.id ? 'white' : '#f97316'} />
+                  <IconComponent size={28} color="white" />
                 </View>
                 <View>
                   <Text style={[styles.cardTitle, currentRaceTypeId === race.id && styles.selectedRaceText]}>{race.title}</Text>
@@ -81,11 +82,11 @@ const RaceTypeSelector: React.FC<RaceTypeSelectorProps> = ({ onSelect, currentRa
             </View>
             <View style={styles.cardContent}>
               <View style={styles.badgesContainer}>
-                <View style={[styles.badge, styles.outlineBadge]}>
-                  <Text style={[styles.badgeText, styles.outlineBadgeText]}>{race.duration}</Text>
+                <View style={[styles.badge, { backgroundColor: `${race.color}20` }]}>
+                  <Text style={[styles.badgeText, { color: race.color }]}>{race.duration}</Text>
                 </View>
-                <View style={[styles.badge, styles.secondaryBadge]}>
-                  <Text style={styles.badgeText}>{race.difficulty}</Text>
+                <View style={[styles.badge, { backgroundColor: `${race.color}15` }]}>
+                  <Text style={[styles.badgeText, { color: race.color }]}>{race.difficulty}</Text>
                 </View>
               </View>
               <Text style={[styles.descriptionText, currentRaceTypeId === race.id && styles.selectedRaceDescription]}>{race.description}</Text>
@@ -170,26 +171,17 @@ const styles = StyleSheet.create({
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 12,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  outlineBadge: {
-    borderColor: '#4b5563', // gray-600
-    borderWidth: 1,
-  },
-  outlineBadgeText: {
-    color: '#d1d5db', // gray-300
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  secondaryBadge: {
-    backgroundColor: '#374151', // gray-700
+    borderWidth: 0,
+    marginHorizontal: 2,
+    minWidth: 80,
   },
   badgeText: {
-    color: 'white',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600',
+    textAlign: 'center',
   },
   descriptionText: {
     fontSize: 14,
