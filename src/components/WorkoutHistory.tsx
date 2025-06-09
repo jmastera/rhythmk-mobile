@@ -209,7 +209,21 @@ const WorkoutHistory: React.FC = () => {
                 </TouchableOpacity>
               </View>
               {(console.log('WorkoutHistory - selectedWorkout in Modal:', selectedWorkout), null)}
-              <WorkoutDetail workout={selectedWorkout} />
+              <WorkoutDetail workout={{
+                id: selectedWorkout.id,
+                date: selectedWorkout.date,
+                duration: selectedWorkout.duration,
+                distance: selectedWorkout.distance,
+                avgPace: selectedWorkout.pace ? parseFloat(selectedWorkout.pace.split('/')[0].replace(':', '.')) : 0,
+                coordinates: selectedWorkout.routeCoordinates || [],
+                planName: selectedWorkout.type,
+                totalElevationGain: selectedWorkout.totalElevationGain,
+                totalElevationLoss: selectedWorkout.totalElevationLoss,
+                notes: selectedWorkout.notes,
+                calories: selectedWorkout.calories,
+                avgHeartRate: selectedWorkout.avgHeartRate,
+                splits: selectedWorkout.splits || []
+              }} />
             </View>
           </View>
         </Modal>

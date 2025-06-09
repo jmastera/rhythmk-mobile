@@ -31,13 +31,13 @@ const SettingsSection = () => {
             <Text style={styles.label}>Enable Distance Alerts</Text>
             <Switch
               trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={settings.audioCueDefaults.distanceEnabled ? '#f5dd4b' : '#f4f3f4'}
+              thumbColor={settings.audioCueDefaults.announceDistance ? '#f5dd4b' : '#f4f3f4'}
               ios_backgroundColor="#3e3e3e"
-              onValueChange={(value) => handleAudioSettingChange('distanceEnabled', value)}
-              value={settings.audioCueDefaults.distanceEnabled}
+              onValueChange={(value) => handleAudioSettingChange('announceDistance', value)}
+              value={settings.audioCueDefaults.announceDistance}
             />
           </View>
-          {settings.audioCueDefaults.distanceEnabled && (
+          {settings.audioCueDefaults.announceDistance && (
             <>
               <View style={styles.settingRow}>
                 <Text style={styles.label}>Unit</Text>
@@ -88,13 +88,13 @@ const SettingsSection = () => {
             <Text style={styles.label}>Enable Pace Alerts</Text>
             <Switch
               trackColor={{ false: '#767577', true: '#81b0ff' }}
-              thumbColor={settings.audioCueDefaults.paceEnabled ? '#f5dd4b' : '#f4f3f4'}
+              thumbColor={settings.audioCueDefaults.announcePace ? '#f5dd4b' : '#f4f3f4'}
               ios_backgroundColor="#3e3e3e"
-              onValueChange={(value) => handleAudioSettingChange('paceEnabled', value)}
-              value={settings.audioCueDefaults.paceEnabled}
+              onValueChange={(value) => handleAudioSettingChange('announcePace', value)}
+              value={settings.audioCueDefaults.announcePace}
             />
           </View>
-          {settings.audioCueDefaults.paceEnabled && (
+          {settings.audioCueDefaults.announcePace && (
             <>
               <View style={styles.settingRow}>
                 <Text style={styles.label}>Target Pace (mm:ss)</Text>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, TextInput, ScrollView } from 'react-native';
-import { MapPin, Timer, Volume2, X } from 'lucide-react-native';
-import { AudioCueSettingsData } from '../hooks/useUserSettings'; // Import the interface
+import { MapPin, Timer, Volume2, X, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { AudioCueSettingsData } from '../types/audioTypes'; // Import the interface
 
 interface AudioCueSettingsProps {
   onSave: (settings: AudioCueSettingsData) => void;
@@ -11,6 +11,21 @@ interface AudioCueSettingsProps {
 
 const AudioCueSettings = ({ onSave, currentSettings, onClose }: AudioCueSettingsProps) => {
   const [settings, setSettings] = useState<AudioCueSettingsData>(currentSettings);
+  
+  // Track expanded/collapsed state for each section
+  const [expandedSections, setExpandedSections] = useState({
+    distance: false,  // Default to collapsed
+    time: false,      // Default to collapsed
+    pace: false       // Default to collapsed
+  });
+  
+  // Toggle expanded/collapsed state for a section
+  const toggleSection = (section: 'distance' | 'time' | 'pace') => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
 
   const distanceOptions = {
     km: [0.25, 0.5, 1, 2, 5],
@@ -41,32 +56,41 @@ const AudioCueSettings = ({ onSave, currentSettings, onClose }: AudioCueSettings
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Audio Cues</Text>
-        {onClose && (
+    <View>
+      {onClose && (
+        <View style={styles.headerRow}>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <X size={24} color="#FFF" />
           </TouchableOpacity>
-        )}
-      </View>
+        </View>
+      )}
 
-      {/* Distance Cues Card */}
+      {/* Distance Alerts Card */}
       <View style={styles.card}>
-        <View style={styles.cardHeader}>
+        <TouchableOpacity 
+          style={styles.cardHeader}
+          onPress={() => toggleSection('distance')}
+          activeOpacity={0.7}
+        >
           <View style={styles.cardHeaderTitleContainer}>
             <MapPin size={22} color="#FFA500" style={styles.icon} />
             <Text style={styles.cardTitle}>Distance Alerts</Text>
           </View>
-          <Switch
-            trackColor={{ false: '#767577', true: '#FFA500' }}
-            thumbColor={settings.distanceEnabled ? '#FFF' : '#f4f3f4'}
-            ios_backgroundColor="#3e3e3e"
-            onValueChange={(enabled) => setSettings((prev) => ({ ...prev, distanceEnabled: enabled }))}
-            value={settings.distanceEnabled}
-          />
-        </View>
-        {settings.distanceEnabled && (
+          <View style={styles.headerRightContainer}>
+            <Switch
+              trackColor={{ false: '#767577', true: '#FFA500' }}
+              thumbColor={settings.announceDistance ? '#FFF' : '#f4f3f4'}
+              ios_backgroundColor="#3e3e3e"
+              onValueChange={(enabled) => setSettings((prev) => ({ ...prev, announceDistance: enabled }))}
+              value={settings.announceDistance}
+              style={{marginRight: 10}}
+            />
+            {expandedSections.distance ? 
+              <ChevronUp size={18} color="#FFA500" /> : 
+              <ChevronDown size={18} color="#FFA500" />}
+          </View>
+        </TouchableOpacity>
+        {settings.announceDistance && expandedSections.distance && (
           <View style={styles.cardContent}>
             <Text style={styles.label}>Unit</Text>
             <View style={styles.buttonGroup}>
@@ -113,22 +137,32 @@ const AudioCueSettings = ({ onSave, currentSettings, onClose }: AudioCueSettings
         )}
       </View>
 
-      {/* Pace Cues Card */}
+      {/* Pace Alerts Card */}
       <View style={styles.card}>
-        <View style={styles.cardHeader}>
+        <TouchableOpacity 
+          style={styles.cardHeader}
+          onPress={() => toggleSection('pace')}
+          activeOpacity={0.7}
+        >
           <View style={styles.cardHeaderTitleContainer}>
             <Timer size={22} color="#FFA500" style={styles.icon} />
             <Text style={styles.cardTitle}>Pace Alerts</Text>
           </View>
-          <Switch
-            trackColor={{ false: '#767577', true: '#FFA500' }}
-            thumbColor={settings.paceEnabled ? '#FFF' : '#f4f3f4'}
-            ios_backgroundColor="#3e3e3e"
-            onValueChange={(enabled) => setSettings((prev) => ({ ...prev, paceEnabled: enabled }))}
-            value={settings.paceEnabled}
-          />
-        </View>
-        {settings.paceEnabled && (
+          <View style={styles.headerRightContainer}>
+            <Switch
+              trackColor={{ false: '#767577', true: '#FFA500' }}
+              thumbColor={settings.announcePace ? '#FFF' : '#f4f3f4'}
+              ios_backgroundColor="#3e3e3e"
+              onValueChange={(enabled) => setSettings((prev) => ({ ...prev, announcePace: enabled }))}
+              value={settings.announcePace}
+              style={{marginRight: 10}}
+            />
+            {expandedSections.pace ? 
+              <ChevronUp size={18} color="#FFA500" /> : 
+              <ChevronDown size={18} color="#FFA500" />}
+          </View>
+        </TouchableOpacity>
+        {settings.announcePace && expandedSections.pace && (
           <View style={styles.cardContent}>
             <Text style={styles.label}>Target Pace (per {settings.distanceUnit})</Text>
             <TextInput
@@ -164,32 +198,21 @@ const AudioCueSettings = ({ onSave, currentSettings, onClose }: AudioCueSettings
         )}
       </View>
 
-      <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-        <Volume2 size={20} color="#FFF" style={styles.icon} />
-        <Text style={styles.saveButtonText}>Save Audio Settings</Text>
-      </TouchableOpacity>
-    </ScrollView>
+      {onClose && (
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>Save Audio Settings</Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#121212', // Dark background
-  },
-  contentContainer: {
-    padding: 20,
-  },
-  header: {
+  headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFF',
+    marginBottom: 10,
   },
   closeButton: {
     padding: 8, // Make it easier to tap
@@ -197,7 +220,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)', // Translucent white
     borderRadius: 12,
-    marginBottom: 20,
+    marginBottom: 15,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     borderWidth: 1,
   },
@@ -210,6 +233,10 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   cardHeaderTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerRightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },

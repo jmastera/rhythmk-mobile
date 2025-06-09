@@ -110,24 +110,25 @@ const LogActivityScreen = () => {
   // Navigation
   const route = useRoute<LogActivityRouteProp>();
   const navigation = useNavigation();
-  const params = route.params;
+  // Ensure params exists with a default empty object
+  const params = route.params || {};
   
-  // Check if we're in edit mode
-  const isEditing = params.editMode === true;
-  const activityId = params.activityId;
-  const isRunNotesEdit = params.isRunNotesEdit === true;
+  // Check if we're in edit mode - safely access properties
+  const isEditing = params?.editMode === true;
+  const activityId = params?.activityId;
+  const isRunNotesEdit = params?.isRunNotesEdit === true;
   
-  // States for form fields
-  const [activityType, setActivityType] = useState(params.activityType || '');
-  const [customActivityName, setCustomActivityName] = useState(params.customActivityName || '');
-  const [date, setDate] = useState(params.date ? new Date(params.date) : new Date());
+  // States for form fields - safely access properties
+  const [activityType, setActivityType] = useState(params?.activityType || '');
+  const [customActivityName, setCustomActivityName] = useState(params?.customActivityName || '');
+  const [date, setDate] = useState(params?.date ? new Date(params.date) : new Date());
   const [durationMinutes, setDurationMinutes] = useState(
-    params.duration ? String(Math.floor(params.duration / 60)) : ''
+    params?.duration ? String(Math.floor(params.duration / 60)) : ''
   );
-  const [intensity, setIntensity] = useState(params.intensity || 'Medium');
-  const [notes, setNotes] = useState(params.notes || '');
+  const [intensity, setIntensity] = useState(params?.intensity || 'Medium');
+  const [notes, setNotes] = useState(params?.notes || '');
   const [caloriesBurned, setCaloriesBurned] = useState(
-    params.caloriesBurned ? String(params.caloriesBurned) : ''
+    params?.caloriesBurned ? String(params.caloriesBurned) : ''
   );
   
   // Date picker state

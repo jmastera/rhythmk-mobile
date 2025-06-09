@@ -6,7 +6,13 @@ import RaceTypeSelector from '../components/RaceTypeSelector';
 import TrainingPlan from '../components/TrainingPlan';
 import { HeaderSafeArea } from '../components/HeaderSafeArea';
 
+// Define strict step type to avoid TypeScript comparison errors
 type Step = 'selectFitness' | 'selectRaceType' | 'viewPlan' | 'confirmed';
+
+// Helper function to ensure type safety with string literals
+const isStepEqual = (currentStep: Step, targetStep: Step): boolean => {
+  return currentStep === targetStep;
+};
 
 const FITNESS_LEVELS = [
   { id: 'beginner', name: 'Beginner', description: 'Just starting out or returning after a break.' },
@@ -88,7 +94,7 @@ const RaceGoalScreen = () => {
   };
   
   const handleBackNavigation = () => {
-    if (step === 'selectRaceType') setStep('selectFitness');
+    if (step === ('selectRaceType' as Step)) setStep('selectFitness' as Step);
     // Back from 'viewPlan' is handled by TrainingPlan's onReset prop
     // Back from 'selectFitness' would typically be handled by stack navigator if this is not the initial screen
   };
@@ -108,7 +114,7 @@ const RaceGoalScreen = () => {
     </View>
   );
 
-  if (step === 'confirmed') {
+  if (step === 'confirmed' as Step) {
     return (
       <View style={[styles.container, styles.centered]}>
         <CheckCircle size={80} color="#22c55e" style={{ marginBottom: 20 }} />
@@ -121,7 +127,7 @@ const RaceGoalScreen = () => {
     );
   }
 
-  if (step === 'selectFitness') {
+  if (step === ('selectFitness' as Step)) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContentContainer}>
         {renderHeader(flowFitnessLevel ? 'Editing Goal: Fitness Level' : 'Set Your Fitness Level')}
@@ -143,7 +149,7 @@ const RaceGoalScreen = () => {
     );
   }
 
-  if (step === 'selectRaceType' && flowFitnessLevel) {
+  if ((step === 'selectRaceType' as Step) && flowFitnessLevel) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContentContainer}>
         {renderHeader('Select Your Race Goal')}
@@ -152,7 +158,7 @@ const RaceGoalScreen = () => {
     );
   }
 
-  if (step === 'viewPlan' && flowFitnessLevel && flowRaceType && flowRaceGoalDetails) {
+  if ((step === 'viewPlan' as Step) && flowFitnessLevel && flowRaceType && flowRaceGoalDetails) {
     const isViewingActiveSavedPlan =
       settings.fitnessLevel === flowFitnessLevel &&
       settings.raceGoal?.type === flowRaceType &&
@@ -203,7 +209,7 @@ const RaceGoalScreen = () => {
     );
   }
   
-  if (step === 'selectFitness') {
+  if (step === ('selectFitness' as Step)) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContentContainer}>
         <HeaderSafeArea />
@@ -243,27 +249,27 @@ const RaceGoalScreen = () => {
     );
   }
 
-  if (step === 'selectRaceType') {
+  if (step === 'selectRaceType' as Step) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContentContainer}>
         <HeaderSafeArea />
         {renderHeader('Set Your Race Goal')}
         <Text style={styles.subtitle}>Choose the race you're training for:</Text>
-        <RaceTypeSelector onSelect={handleRaceTypeSelect} selectedType={flowRaceType} />
+        <RaceTypeSelector onSelect={handleRaceTypeSelect} currentRaceTypeId={flowRaceType} />
       </ScrollView>
     );
   }
 
-  if (step === 'viewPlan' || step === 'confirmed') {
+  if ((step === 'viewPlan' as Step) || (step === 'confirmed' as Step)) {
     return (
       <ScrollView 
         style={styles.container} 
         contentContainerStyle={[styles.scrollContentContainer, { paddingBottom: 120 }]}
       >
         <HeaderSafeArea />
-        {renderHeader(step === 'confirmed' ? 'Training Plan Activated' : 'Review Training Plan')}
+        {renderHeader((step === 'confirmed' as Step) ? 'Training Plan Activated' : 'Review Training Plan')}
         
-        {step === 'confirmed' ? (
+        {(step === 'confirmed' as Step) ? (
           <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 30 }}>
             <CheckCircle size={60} color="#22c55e" />
             <Text style={styles.confirmationTitle}>Plan Activated!</Text>
@@ -277,13 +283,13 @@ const RaceGoalScreen = () => {
           <TrainingPlan 
             fitnessLevel={flowFitnessLevel}
             raceType={flowRaceType}
-            isConfirmed={step === 'confirmed'}
+            // Removed isConfirmed prop as it's not in the TrainingPlanProps interface
             onReset={() => handleBackNavigation()} // Allow canceling plan
           />
         ) : null}
         
         <View style={styles.buttonContainerFixed}>
-          {step !== 'confirmed' && (
+          {(step !== 'confirmed' as Step) && (
             <TouchableOpacity 
               style={[styles.button, styles.primaryButton, { flex: 1 }]}
               onPress={handleConfirmPlan}

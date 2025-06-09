@@ -1,7 +1,8 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { useTextToSpeech } from './useTextToSpeech';
 // Import AudioCueSettingsData and useUserSettings from the new location
-import { AudioCueSettingsData, useUserSettings } from './useUserSettings';
+import { useUserSettings } from './useUserSettings';
+import { AudioCueSettingsData } from '../types/audioTypes';
 
 interface UseAudioCuesProps {
   settings?: AudioCueSettingsData; // Optional: settings for a specific run
@@ -60,7 +61,7 @@ export const useAudioCues = ({ settings: runSpecificSettings, isTracking }: UseA
 
 
   const checkDistanceCue = useCallback(async (currentDistanceKm: number) => {
-    if (isLoadingSettings || !getEffectiveSettings().distanceEnabled || !isTracking) return;
+    if (isLoadingSettings || !getEffectiveSettings().announceDistance || !isTracking) return;
 
     const effectiveSettings = getEffectiveSettings();
     const distanceInConfiguredUnit = convertDistance(currentDistanceKm, effectiveSettings.distanceUnit);
@@ -96,16 +97,18 @@ export const useAudioCues = ({ settings: runSpecificSettings, isTracking }: UseA
   }, [isLoadingSettings, getEffectiveSettings, isTracking, convertDistance, formatDistance, speak]);
 
   const checkPaceCue = useCallback(async (currentPace: string, avgPace: string) => {
-    if (isLoadingSettings || !getEffectiveSettings().paceEnabled || !isTracking || currentPace === '--:--') return;
+    if (isLoadingSettings || !getEffectiveSettings().announcePace || !isTracking || currentPace === '--:--') return;
 
     const effectiveSettings = getEffectiveSettings();
     const now = Date.now();
     // Check pace cue not more than once every 30 seconds
     if (now - lastPaceCheck.current < 30000) return;
 
-    const targetPaceSeconds = convertPaceToSeconds(effectiveSettings.targetPace);
+    // Ensure we have valid strings for pace calculations
+    const targetPace: string = effectiveSettings.targetPace || '5:00';
+    const targetPaceSeconds = convertPaceToSeconds(targetPace);
     const currentPaceSeconds = convertPaceToSeconds(currentPace);
-    const tolerance = effectiveSettings.paceTolerance;
+    const tolerance: number = effectiveSettings.paceTolerance || 10;
 
     if (currentPaceSeconds === Infinity || targetPaceSeconds === Infinity) return;
 
@@ -113,9 +116,9 @@ export const useAudioCues = ({ settings: runSpecificSettings, isTracking }: UseA
 
     if (Math.abs(difference) > tolerance) {
       if (difference > 0) {
-        await speak(`Pace too slow. Current pace ${formatPace(currentPace)}. Target ${formatPace(effectiveSettings.targetPace)}`, 'high');
+        await speak(`Pace too slow. Current pace ${formatPace(currentPace)}. Target ${formatPace(targetPace)}`, 'high');
       } else {
-        await speak(`Pace too fast. Current pace ${formatPace(currentPace)}. Target ${formatPace(effectiveSettings.targetPace)}`, 'high');
+        await speak(`Pace too fast. Current pace ${formatPace(currentPace)}. Target ${formatPace(targetPace)}`, 'high');
       }
       lastPaceCheck.current = now; // Update only if an announcement was made
     }

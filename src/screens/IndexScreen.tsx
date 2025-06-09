@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
 import { Plus, PlayCircle, Target, TrendingUp, Calendar, Settings as SettingsIcon } from 'lucide-react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../App'; // Adjust path if App.tsx is elsewhere
 import { useUserSettings } from '../hooks/useUserSettings'; // Assuming path is correct
@@ -26,10 +26,24 @@ type IndexScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, '
 
 const IndexScreen = () => {
   const navigation = useNavigation<IndexScreenNavigationProp>();
-  const { settings } = useUserSettings();
+  const { settings, refreshSettings } = useUserSettings();
   const insets = useSafeAreaInsets();
+  // State to force re-render when race goal is updated
+  const [forceUpdate, setForceUpdate] = useState(0);
+  
+  // Refresh settings when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // This will be called when the screen comes into focus
+      refreshSettings();
+      // Force re-render to update UI (especially for badge visibility)
+      setForceUpdate(prev => prev + 1);
+      return () => {}; // cleanup function
+    }, [])
+  );
+
   // Determine if there's an active plan based on user settings
-  // This logic might need adjustment based on how 'raceGoal' and 'fitnessLevel' are stored
+  // Use forceUpdate in the dependency array to ensure this is recalculated
   const hasActivePlan = Boolean(settings.raceGoal && settings.raceGoal.type && settings.fitnessLevel);
 
   // For now, we assume the user is always onboarded when reaching IndexScreen.

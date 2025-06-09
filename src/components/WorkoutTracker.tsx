@@ -1,19 +1,42 @@
+/// <reference path="../hooks/useLocation.d.ts" />
+/// <reference path="../utils/PaceCalculator.d.ts" />
+/// <reference path="../utils/TimeFormatter.d.ts" />
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, AppState, Platform, TextInput } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList } from '../../App'; // Adjust path if App.tsx is elsewhere
-import * as Location from 'expo-location';
-import { Settings, Clock, MapPin, Zap, Target, Play, Pause, Square } from 'lucide-react-native';
+import { 
+  Alert, 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  StyleSheet, 
+  ScrollView, 
+  Modal, 
+  TouchableWithoutFeedback, 
+  Switch, 
+  Dimensions, 
+  TextInput, 
+  AppState 
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WORKOUT_HISTORY_KEY } from '../types/history';
 import AudioCueSettings from './AudioCueSettings';
-import * as Speech from 'expo-speech';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { decimalMinutesToTime, metersPerSecondToMinPerKm, formatDistanceDisplay, formatPaceDisplay, formatDurationDisplay } from '../utils/PaceCalculator';
+import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Play, Pause, StopCircle, Square, Trash2, Zap, Target, Clock, MapPin, ChevronUp, ChevronDown, Map, Settings, Volume2, VolumeX, Watch, Navigation } from 'lucide-react-native';
+import { RouteProp } from '@react-navigation/native';
+import { RootStackParamList } from '../types/navigationTypes';
 import { useAudioCues } from '../hooks/useAudioCues';
-import { AudioCueSettingsData, useUserSettings } from '../hooks/useUserSettings';
-import { WorkoutEntry, WORKOUT_HISTORY_KEY, Split } from '../types/history';
-import { formatDistanceDisplay, formatPaceDisplay, decimalMinutesToTime, formatDurationDisplay } from '../utils/units';
+import { AudioCueSettingsData } from '../types/audioTypes';
+import { useUserSettings } from '../hooks/useUserSettings';
+import { TrackingPosition, Coordinate, Split, WorkoutEntry } from '../types/workoutTypes';
+import { useStepCounter } from '../hooks/useStepCounter';
 import { getRaceColor } from '../utils/raceColors';
 import { HeaderSafeArea } from './HeaderSafeArea';
+import PedometerTrackingMode from './PedometerTrackingMode';
+import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
+import * as Speech from 'expo-speech';
 
 const DEFAULT_USER_WEIGHT_KG = 70; // Default user weight in kilograms for calorie estimation
 const SPLIT_DISTANCE_KM = 1; // Define 1km as the distance for each split
@@ -26,8 +49,37 @@ type WorkoutTrackerScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutTrack
 
 interface WorkoutTrackerProps {
   route: WorkoutTrackerScreenRouteProp;
-  onWorkoutComplete?: (workoutData: any) => void; // Replace 'any' with a more specific type if available
+  navigation: any; // Navigation prop passed automatically by Stack Navigator
+  onWorkoutComplete: (workoutData: WorkoutEntry) => void;
 }
+
+// Define SplitData interface for workout splits
+interface SplitData {
+  distance: number; // in km
+  time: number; // in seconds
+  pace: number; // in min/km
+  timestamp: number; // timestamp when this split was recorded
+}
+
+// Helper function to convert SplitData to Split
+const convertToSplit = (splitData: SplitData, index: number, displayUnit?: 'km' | 'mi'): Split => {
+  return {
+    splitNumber: index + 1,
+    distance: splitData.distance, 
+    duration: splitData.time, // Map time to duration
+    pace: typeof splitData.pace === 'number' 
+      ? formatPaceDisplay(splitData.pace, displayUnit === 'mi' ? 'miles' : 'km')
+      : String(splitData.pace)
+  };
+}
+
+// Helper function to calculate pace in minutes per km
+const calculatePace = (distanceKm: number, durationSeconds: number): number => {
+  if (!distanceKm || distanceKm <= 0 || !durationSeconds || durationSeconds <= 0) {
+    return 0;
+  }
+  return durationSeconds / 60 / distanceKm; // Returns decimal minutes per km
+};
 
 // Helper function to calculate distance between two lat/lng points (Haversine formula)
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -42,218 +94,567 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
   return R * c; // Distance in km
 };
 
-const calculatePaceMinPerKm = (distanceKm: number, durationSeconds: number): number | null => {
-  if (distanceKm <= 0 || durationSeconds <= 0) return null;
-  return durationSeconds / 60 / distanceKm; // Returns decimal minutes per km
+// Helper function to calculate distance in meters between two coordinates
+const calculateDistanceInMeters = (coord1: Location.LocationObjectCoords, coord2: Location.LocationObjectCoords): number => {
+  // Implementation of the Haversine formula
+  const R = 6371e3; // Earth radius in meters
+  const lat1 = coord1.latitude * Math.PI / 180;
+  const lat2 = coord2.latitude * Math.PI / 180;
+  const deltaLat = (coord2.latitude - coord1.latitude) * Math.PI / 180;
+  const deltaLon = (coord2.longitude - coord1.longitude) * Math.PI / 180;
+  
+  const a = Math.sin(deltaLat/2) * Math.sin(deltaLat/2) +
+            Math.cos(lat1) * Math.cos(lat2) *
+            Math.sin(deltaLon/2) * Math.sin(deltaLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  
+  return R * c; // Distance in meters
 };
 
-const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplete }) => {
-  const insets = useSafeAreaInsets();
-  const currentPlan = route.params?.currentPlan;
+const calculatePaceMinPerKm = (distance: number, durationSeconds: number): number => {
+  // Ensure we don't divide by zero and have valid inputs
+  if (distance <= 0 || durationSeconds <= 0) return 0;
+  
+  // Convert distance to kilometers if it's in meters
+  const distanceKm = distance < 100 ? distance : distance / 1000;
+  
+  // Calculate pace as minutes per kilometer
+  return (durationSeconds / 60) / distanceKm;
+};
 
+const formatRaceType = (type: string): string => {
+  switch(type) {
+    case '5k': return '5K';
+    case '10k': return '10K';
+    case 'half-marathon': return 'Half Marathon';
+    case 'marathon': return 'Marathon';
+    default: return type.charAt(0).toUpperCase() + type.slice(1);
+  }
+};
+
+const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTrackerProps): React.ReactElement => {
+  const insets = useSafeAreaInsets();
+  const currentPlan = route?.params?.currentPlan;
+  const { settings, updateAudioCueDefaults, isLoadingSettings } = useUserSettings();
+  
+  // Define default audio cue settings
+  const defaultAudioCueSettings: AudioCueSettingsData = {
+    enabled: true,
+    announceDistance: true,
+    distanceInterval: 1, // 1km
+    announcePace: true,
+    announceTime: true,
+    timeInterval: 5, // 5 minutes
+    volume: 0.8,
+    distanceUnit: 'km',
+    announceCalories: false
+  };
+  
+  // Tracking state
   const [isTracking, setIsTracking] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isCountingDown, setIsCountingDown] = useState(false);
-  const [countdownSeconds, setCountdownSeconds] = useState(5); // 5 second countdown
+  const [countdownValue, setCountdownValue] = useState(0); // Countdown value
   const [duration, setDuration] = useState(0); // in seconds
   const [distance, setDistance] = useState(0); // in km
   const [currentPace, setCurrentPace] = useState<number | null>(null); // min/km as decimal
   const [avgPace, setAvgPace] = useState<number | null>(null); // min/km as decimal
-  const [coordinates, setCoordinates] = useState<Array<{ latitude: number; longitude: number; altitude?: number | null; timestamp?: number }>>([]);
+  const [coordinates, setCoordinates] = useState<Coordinate[]>([]);
   const [lastPosition, setLastPosition] = useState<Location.LocationObjectCoords | null>(null);
-  const [totalElevationGain, setTotalElevationGain] = useState(0); // in meters
-  const [totalElevationLoss, setTotalElevationLoss] = useState(0); // in meters
-  const [currentNotes, setCurrentNotes] = useState('');
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [estimatedCalories, setEstimatedCalories] = useState(0);
-  const [splits, setSplits] = useState<Split[]>([]);
+  const [runAudioSettings, setRunAudioSettings] = useState<AudioCueSettingsData>(settings.audioCueDefaults);
+  const [splits, setSplits] = useState<SplitData[]>([]);
   const [distanceSinceLastSplitKm, setDistanceSinceLastSplitKm] = useState(0);
   const [timeAtLastSplitSeconds, setTimeAtLastSplitSeconds] = useState(0);
+  const [gpsActive, setGpsActive] = useState(true); // GPS active by default
+  const [pedometerDistance, setPedometerDistance] = useState(0); // in km from step counter
+  const [hybridDistance, setHybridDistance] = useState(0); // combined distance from hybrid tracking
+  const [currentNotes, setCurrentNotes] = useState(''); // Notes for current workout
+  const [totalElevationGain, setTotalElevationGain] = useState(0); // Elevation gain in meters
+  const [totalElevationLoss, setTotalElevationLoss] = useState(0); // Elevation loss in meters
+  const [hasAnnouncedStart, setHasAnnouncedStart] = useState(false);
+
+  // Refs for state values needed in callbacks to avoid stale closures
+
+  // Refs for tracking state and callbacks
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
+  const hasAnnouncedStartRef = useRef(false);
+  const appStateRef = useRef(AppState.currentState);
+  const isTrackingRef = useRef(isTracking);
+  const isPausedRef = useRef(isPaused);
+  const distanceRef = useRef(distance);
+  const durationRef = useRef(duration);
+  const lastLocationTimestampRef = useRef<number | null>(null);
+  const lastPositionRef = useRef<TrackingPosition | null>(null);
+  const userSettingsRef = useRef(settings);
+
+  // Update refs when state changes
+  useEffect(() => {
+    isTrackingRef.current = isTracking;
+  }, [isTracking]);
   
-  const [showAudioSettings, setShowAudioSettings] = useState(false);
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
   
-  // Play countdown beep using speech synthesis
-  const playCountdownSound = async (countdownValue: number) => {
-    try {
-      // Stop any currently speaking audio
-      await Speech.stop();
+  useEffect(() => {
+    distanceRef.current = distance;
+  }, [distance]);
+  
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
+  
+  useEffect(() => {
+    userSettingsRef.current = settings;
+  }, [settings]);
+  
+  // Handle step-based distance updates
+  const handleStepDistanceUpdate = useCallback((distanceInKm: number) => {
+    if (isTracking && !isPaused) {
+      console.log('Step counter distance update:', distanceInKm, 'km');
+      setPedometerDistance(distanceInKm);
       
-      // Different sounds for different countdown values
-      if (countdownValue === 1) {
-        // Final beep - use a longer sound or say "Go"
-        await Speech.speak('Go', {
-          rate: 0.8,
-          pitch: 1.2,
-          volume: 1.0,
+      // If GPS is not active, use step counter as the primary distance source
+      if (!gpsActive) {
+        setDistance(distanceInKm);
+        
+        // Calculate pace based on pedometer distance
+        if (duration > 0 && distanceInKm > 0) {
+          const paceMinutes = duration / 60 / distanceInKm;
+          setCurrentPace(paceMinutes);
+          setAvgPace(paceMinutes);
+        }
+      }
+    }
+  }, [gpsActive, isTracking, isPaused, duration]);
+  
+  // Handle hybrid distance updates (combined GPS + step data)
+  const handleHybridDistanceUpdate = useCallback((distanceInKm: number) => {
+    // Validate the incoming data first
+    if (typeof distanceInKm !== 'number' || isNaN(distanceInKm)) {
+      console.warn('⚠️ Invalid hybrid distance received:', distanceInKm);
+      return;
+    }
+    
+    // Only process updates when actively tracking
+    if (isTracking && !isPaused) {
+      console.log(`🔄 Hybrid distance update: ${distanceInKm.toFixed(3)} km (tracking active)`);
+      
+      // Always update the hybrid distance state
+      setHybridDistance(prevDistance => {
+        console.log(`🔄 Hybrid distance changed: ${prevDistance.toFixed(3)} → ${distanceInKm.toFixed(3)} km`);
+        return distanceInKm;
+      });
+      
+      // When GPS is active, we use the hybrid distance as our primary distance
+      if (gpsActive) {
+        console.log(`📍 GPS active: Updating main distance with hybrid: ${distanceInKm.toFixed(3)} km`);
+        
+        setDistance(prevDistance => {
+          console.log(`📏 Main distance changed: ${prevDistance.toFixed(3)} → ${distanceInKm.toFixed(3)} km`);
+          return distanceInKm;
+        });
+      }
+    }
+  }, [gpsActive, isTracking, isPaused]);
+  
+  // Initialize step counter
+  const {
+    steps,
+    distance: stepCounterDistance,
+    hybridDistance: stepCounterHybridDistance,
+    isActive: isStepCounterActive,
+    enabled: stepCounterEnabled,
+    setEnabled: setStepCounterEnabled
+  } = useStepCounter({
+    enabled: isTracking && !isPaused,
+    isRunning: true, // Assuming this is for running, not walking
+    userHeightCm: settings.userHeight || 170,
+    onDistanceChange: handleStepDistanceUpdate,
+    onHybridDistanceChange: handleHybridDistanceUpdate,
+    gpsDistanceMeters: distance * 1000, // Convert km to meters
+    isGpsActive: gpsActive
+  });
+  
+  // Update step counter when tracking state changes
+  useEffect(() => {
+    // The step counter is controlled by the enabled prop which we already set
+    console.log(`Step counter ${isTracking && !isPaused ? 'enabled' : 'disabled'} based on tracking state`);
+  }, [isTracking, isPaused]);
+  
+  // Explicitly sync the main distance state with pedometer/GPS data
+  useEffect(() => {
+    if (isTracking && !isPaused) {
+      console.log('Syncing distance - pedometer:', stepCounterDistance, 'km, hybrid:', stepCounterHybridDistance, 'km, gpsActive:', gpsActive);
+      
+      if (gpsActive && stepCounterHybridDistance > 0) {
+        // When GPS is active, use hybrid distance (GPS + step calibration)
+        console.log('📊 UPDATING DISTANCE from hybrid source:', stepCounterHybridDistance.toFixed(3), 'km');
+        setDistance(stepCounterHybridDistance);
+        // Also update the state that holds the hybrid distance value
+        setHybridDistance(stepCounterHybridDistance);
+      } else if (!gpsActive && stepCounterDistance > 0) {
+        // When GPS is not active, use pedometer distance
+        console.log('📊 UPDATING DISTANCE from pedometer source:', stepCounterDistance.toFixed(3), 'km');
+        setDistance(stepCounterDistance);
+        // Also update the state that holds the pedometer distance value
+        setPedometerDistance(stepCounterDistance);
+      }
+      
+      // Recalculate pace based on updated distance
+      if (duration > 0 && (stepCounterHybridDistance > 0 || stepCounterDistance > 0)) {
+        const activeDistance = gpsActive ? stepCounterHybridDistance : stepCounterDistance;
+        if (activeDistance > 0) {
+          const paceMinutes = duration / 60 / activeDistance;
+          console.log('⏱️ Recalculating pace based on updated distance:', paceMinutes.toFixed(2), 'min/km');
+          setCurrentPace(paceMinutes);
+          setAvgPace(paceMinutes);
+        }
+      }
+    }
+  }, [isTracking, isPaused, gpsActive, stepCounterDistance, stepCounterHybridDistance, duration]);
+
+  useEffect(() => {
+    if (!isLoadingSettings) {
+      setRunAudioSettings(settings.audioCueDefaults);
+    }
+  }, [settings.audioCueDefaults, isLoadingSettings]);
+
+  // We removed duplicate declarations and are keeping the original handler functions
+  // (defined earlier in lines 201-218 and 221-246)
+
+  // Handle GPS active state changes
+
+  // Handle GPS active state changes
+  const handleGpsActiveChange = useCallback((active: boolean) => {
+    if (isTracking) {
+      Alert.alert(
+        active ? "Activate GPS Tracking" : "Disable GPS Tracking",
+        active ? 
+          "GPS will now be combined with step data for better accuracy." :
+          "Tracking will now rely solely on step counter data. This is ideal for indoor workouts.",
+        [{ text: "OK" }]
+      );
+    }
+    
+    setGpsActive(active);
+    
+    // If turning off GPS, switch to using step counter distance
+    if (!active && isTracking) {
+      setDistance(pedometerDistance);
+    } 
+    // If turning on GPS, start using hybrid distance
+    else if (active && isTracking && hybridDistance > 0) {
+      setDistance(hybridDistance);
+    }
+  }, [isTracking, pedometerDistance, hybridDistance]);
+
+  // Location tracking
+  const [locationSubscription, setLocationSubscription] = useState<Location.LocationSubscription | null>(null);
+
+  // Pace calculation
+
+  // useEffect for Average Pace Calculation
+  useEffect(() => {
+    if (distance > 0 && duration > 0) {
+      // Calculate the average pace in minutes per km
+      const paceValue = calculatePaceMinPerKm(distance, duration);
+      setAvgPace(paceValue);
+      
+      // Calculate current pace based on last split or total if no splits
+      if (splits.length > 0) {
+        const lastSplit = splits[splits.length - 1];
+        // Use lastSplit.time since we're using SplitData which has 'time' not 'duration'
+        const paceFromSplit = calculatePaceMinPerKm(lastSplit.distance, lastSplit.time);
+        setCurrentPace(paceFromSplit);
+      } else {
+        // If no splits yet, current pace equals average pace
+        setCurrentPace(paceValue);
+      }
+    }
+  }, [distance, duration, splits]);
+
+  // Calorie Estimation
+  // Calculate calories when distance changes
+  useEffect(() => {
+    if (distance > 0) { 
+      // Use default weight since UserSettings doesn't have a weight property yet
+      // In the future, we could add weight to UserSettings interface
+      const weight = DEFAULT_USER_WEIGHT_KG;
+      const calories = weight * distance * 1.036; 
+      setEstimatedCalories(calories);
+    }
+  }, [distance]);
+
+  const handleAudioSettingsChange = useCallback((newSettings: Partial<AudioCueSettingsData>) => {
+    setRunAudioSettings(prev => ({ ...prev, ...newSettings }));
+  }, []);
+
+  const updateRunAudioSettings = useCallback((newSettings: AudioCueSettingsData) => {
+    setRunAudioSettings(newSettings);
+    updateAudioCueDefaults(newSettings);
+    setShowAudioSettings(false);
+  }, [updateAudioCueDefaults]);
+
+  // Play countdown beep using speech synthesis - local implementation
+  const handleCountdownBeep = async (countdownValue: number) => {
+    try {
+      // Cancel any existing speech
+      if (await Speech.isSpeakingAsync()) {
+        await Speech.stop();
+      }
+      
+      if (countdownValue <= 0) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await Speech.speak("Go!", { 
+          rate: 1.0,
+          pitch: 1.1,
+          volume: 1.0
         });
       } else {
-        // Regular countdown beep - just say the number
-        await Speech.speak(countdownValue.toString(), {
-          rate: 1.0,
+        // Simple beep for countdowns
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        await Speech.speak(`${countdownValue}`, {
+          rate: 0.9,
           pitch: 1.0,
-          volume: 1.0,
+          volume: 1.0
         });
       }
     } catch (error) {
       console.log('Error playing countdown sound:', error);
     }
   };
-  const { settings, updateAudioCueDefaults, isLoadingSettings } = useUserSettings();
-  // Initialize runAudioSettings with current user defaults, or app defaults if not loaded
-  const [runAudioSettings, setRunAudioSettings] = useState<AudioCueSettingsData>(settings.audioCueDefaults);
-  
-  // Helper function to format race type for display
-  const formatRaceType = (type: string): string => {
-    switch(type) {
-      case '5k': return '5K';
-      case '10k': return '10K';
-      case 'half-marathon': return 'Half Marathon';
-      case 'marathon': return 'Marathon';
-      default: return type.charAt(0).toUpperCase() + type.slice(1);
-    }
+
+  // Countdown timer before starting tracking
+  const initiateCountdown = async () => {
+    setIsCountingDown(true);
+    setCountdownValue(5);
+    handleCountdownBeep(5);
+    
+    // Start the countdown
+    const countdownInterval = setInterval(async () => {
+      setCountdownValue(prev => {
+        const newValue = prev - 1;
+        // Play sound for each step
+        if (newValue >= 0) {
+          handleCountdownBeep(newValue);
+        }
+        return newValue;
+      });
+    }, 1000);
+
+    // Wait 6 seconds (5,4,3,2,1,Go) and then start tracking
+    setTimeout(() => {
+      clearInterval(countdownInterval);
+      setIsCountingDown(false);
+      startTracking();
+    }, 6000);
   };
 
-  // Refs for state values needed in callbacks to avoid stale closures
-  const distanceRef = useRef(distance);
-  const durationRef = useRef(duration);
-
-  useEffect(() => {
-    if (!isLoadingSettings) {
-        setRunAudioSettings(settings.audioCueDefaults);
-    }
-  }, [settings.audioCueDefaults, isLoadingSettings]);
-
-  // Refs for state values needed in callbacks
-  const isTrackingRef = useRef(isTracking);
-  const isPausedRef = useRef(isPaused);
-  const lastLocationTimestampRef = useRef<number | null>(null);
-  // Keep refs updated with the latest state
-  useEffect(() => {
-    isTrackingRef.current = isTracking;
-  }, [isTracking]);
-
-  useEffect(() => {
-    isPausedRef.current = isPaused;
-  }, [isPaused]);
-
-  useEffect(() => {
-    distanceRef.current = distance;
-  }, [distance]);
-
-  useEffect(() => {
-    durationRef.current = duration;
-  }, [duration]);
-
-  const {
-    checkDistanceCue,
-    checkPaceCue,
+  // Initialize audio cues from user settings - only use what's provided by the hook
+  const { 
     announceWorkoutStart,
     announceWorkoutEnd,
     announceSplit,
+    checkDistanceCue,
+    checkPaceCue
   } = useAudioCues({ settings: runAudioSettings, isTracking: isTrackingRef.current });
-
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
-  const hasAnnouncedStart = useRef(false);
-  const appState = useRef(AppState.currentState);
-
-  // useEffect for Average Pace Calculation
-  useEffect(() => {
-    if (distance > 0 && duration > 0) {
-      const newAvgPace = calculatePaceMinPerKm(distance, duration);
-      
-      // Only update average pace if it's within reasonable limits (1-30 min/km)
-      if (newAvgPace !== null && newAvgPace >= 1 && newAvgPace <= 30) {
-        console.log(`AVG PACE EFFECT DEBUG: distance=${distance.toFixed(3)}, duration=${duration}, newAvgPace=${newAvgPace.toFixed(2)}`);
-        setAvgPace(newAvgPace);
-      } else {
-        console.log(`AVG PACE EFFECT DEBUG: Discarded unrealistic average pace calculation: ${newAvgPace}`);
-      }
-    } else {
-      // Reset avgPace if conditions aren't met (e.g., at the start or after reset)
-      setAvgPace(null);
-    }
-  }, [distance, duration]);
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        // App has come to the foreground
-        // Potentially re-check GPS status or permissions if issues arise
-      }
-      appState.current = nextAppState;
-    });
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
-  // Countdown timer effect
-  useEffect(() => {
-    let countdownInterval: NodeJS.Timeout | null = null;
-    
-    if (isCountingDown && countdownSeconds > 0) {
-      // Play sound immediately when each countdown second starts
-      playCountdownSound(countdownSeconds);
-      
-      countdownInterval = setInterval(() => {
-        setCountdownSeconds(prev => {
-          // Will be decremented to this value
-          const nextValue = prev - 1;
-          return nextValue;
-        });
-      }, 1000);
-    } else if (isCountingDown && countdownSeconds === 0) {
-      // Countdown finished, start actual tracking
-      setIsCountingDown(false);
-      setIsTracking(true);
-      
-      // Reset countdown for next time
-      setCountdownSeconds(5);
-    }
-    
-    return () => {
-      if (countdownInterval) {
-        clearInterval(countdownInterval);
-      }
-    };
-  }, [isCountingDown, countdownSeconds]);
   
-  // Duration timer effect
-  useEffect(() => {
-    if (isTracking && !isPaused) {
-      if (!hasAnnouncedStart.current) {
-        announceWorkoutStart();
-        hasAnnouncedStart.current = true;
-      }
-      intervalRef.current = setInterval(() => {
-        setDuration(prev => prev + 1);
-      }, 1000);
+  // Function to pause or resume tracking
+  const pauseTracking = () => {
+    if (isPaused) {
+      // Resume tracking
+      setIsPaused(false);
+      // Announce resume via Speech directly since useAudioCues may not have this
+      Speech.speak('Workout resumed', { rate: 0.9 });
     } else {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      // Pause tracking
+      setIsPaused(true);
+      // Announce pause via Speech directly since useAudioCues may not have this
+      Speech.speak('Workout paused', { rate: 0.9 });
     }
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [isTracking, isPaused, announceWorkoutStart]);
-
-  const initiateCountdown = () => {
-    // Start the countdown
-    setIsCountingDown(true);
-    setCountdownSeconds(5);
   };
-  
-  const startTracking = async () => {
+
+  const stopTracking = async () => {
+    console.log('Stopping workout tracking...');
+    // Set tracking state to false immediately to prevent further updates
+    setIsTracking(false);
+    
+    // Stop location tracking & clean up all intervals
+    if (locationSubscription) {
+      console.log('Removing location subscription');
+      locationSubscription.remove();
+      setLocationSubscription(null);
+    }
+    
+    if (intervalRef.current) {
+      console.log('Clearing timer interval');
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    
+    // Step counter will be disabled automatically when isTracking is set to false
+    console.log('Step counter will be disabled via enabled prop');
+    
+    // Play audio cue for workout end with full sentence format
+    try {
+      // Format time announcement in natural language
+      const minutes = Math.floor(duration / 60);
+      const seconds = duration % 60;
+      
+      let timeAnnouncement = "";
+      if (minutes > 0) {
+        timeAnnouncement += `${minutes} minute${minutes > 1 ? 's' : ''} `;
+      }
+      if (seconds > 0 || minutes === 0) {
+        timeAnnouncement += `${seconds} second${seconds > 1 ? 's' : ''}`;
+      }
+      
+      // Format distance in natural language
+      const distanceUnit = userSettingsRef.current?.displayUnit === 'mi' ? 'miles' : 'km';
+      // Convert km to miles if needed
+      const distanceValue = userSettingsRef.current?.displayUnit === 'mi' ? distance * 0.621371 : distance;
+      // Round to 2 decimal places
+      const roundedDistance = Math.round(distanceValue * 100) / 100;
+      
+      // Format in natural language
+      let formattedDistance;
+      if (roundedDistance === 0.25) {
+        formattedDistance = `a quarter ${distanceUnit === 'miles' ? 'mile' : 'kilometer'}`;
+      } else if (roundedDistance === 0.5) {
+        formattedDistance = `a half ${distanceUnit === 'miles' ? 'mile' : 'kilometer'}`;
+      } else if (roundedDistance === 1) {
+        formattedDistance = `one ${distanceUnit === 'miles' ? 'mile' : 'kilometer'}`;
+      } else {
+        formattedDistance = `${roundedDistance} ${distanceUnit === 'miles' ? 'mile' : 'kilometer'}${roundedDistance !== 1 ? 's' : ''}`;
+      }
+      
+      // Format pace information in natural language if available
+      let paceInfo = '';
+      if (avgPace && avgPace !== 0) {
+        // Format pace in natural language (minutes and seconds)
+        const paceMinutes = Math.floor(avgPace);
+        const paceSeconds = Math.round((avgPace - paceMinutes) * 60);
+        
+        let paceAnnouncement = '';
+        if (paceMinutes > 0) {
+          paceAnnouncement += `${paceMinutes} minute${paceMinutes !== 1 ? 's' : ''}`;
+        }
+        
+        if (paceSeconds > 0) {
+          // Add 'and' if we have both minutes and seconds
+          if (paceMinutes > 0) paceAnnouncement += ' and ';
+          paceAnnouncement += `${paceSeconds} second${paceSeconds !== 1 ? 's' : ''}`;
+        }
+        
+        // Only add the pace info if we have a valid pace to announce
+        if (paceAnnouncement) {
+          paceInfo = ` at an average pace of ${paceAnnouncement} per ${distanceUnit === 'miles' ? 'mile' : 'kilometer'}`;
+        }
+      }
+      
+      // Build the complete announcement with motivational message
+      const announcement = `Workout complete! You ran ${formattedDistance} in ${timeAnnouncement}${paceInfo}. Great job!`;
+      
+      Speech.speak(announcement, {
+        rate: 0.9,
+        pitch: 1.0,
+      });
+      
+      console.log('Workout completion announcement:', announcement);
+    } catch (err) {
+      console.log('Error announcing workout end:', err);
+    }
+    
+    // Save workout data 
+    if (distance > 0 || duration > 0) {
+      // Convert workout data to WorkoutEntry format and call the completion handler
+      const workoutEntry: WorkoutEntry = {
+        id: Date.now().toString(), // Generate unique ID
+        date: new Date().toISOString(),
+        // Convert distance to meters for storage (WorkoutEntry expects meters)
+        distance: distance * 1000, // Convert km to meters
+        duration: duration, // Duration in seconds
+        avgPace: avgPace || 0,
+        calories: estimatedCalories,
+        notes: currentNotes,
+        // Convert SplitData[] to Split[] using our helper function
+        splits: Array.isArray(splits) 
+          ? splits.map((splitData, index) => 
+              // Use the helper function to convert each split safely
+              convertToSplit(splitData, index, userSettingsRef.current?.displayUnit)
+            )
+          : [],
+        coordinates: coordinates,
+        planName: currentPlan ? 'Training Plan' : undefined,
+        // Use gpsActive and step counter state to determine tracking mode
+        trackingMode: gpsActive ? (hybridDistance > 0 ? 'hybrid' : 'gps') : 'pedometer',
+      };
+      
+      console.log('Saving workout data:', workoutEntry);
+      
+      // Save to AsyncStorage directly if no callback provided
+      const saveWorkoutToHistory = async () => {
+        try {
+          // Get existing workout history
+          const historyJson = await AsyncStorage.getItem(WORKOUT_HISTORY_KEY);
+          let history: WorkoutEntry[] = [];
+          
+          if (historyJson) {
+            history = JSON.parse(historyJson);
+          }
+          
+          // Add the new workout
+          history.push(workoutEntry);
+          
+          // Save back to AsyncStorage
+          await AsyncStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(history));
+          console.log('✅ Workout saved to history storage');
+          
+          // Navigate to history screen after successful save
+          navigation.navigate('History');
+        } catch (error) {
+          console.error('Failed to save workout:', error);
+          Alert.alert('Error', 'Failed to save workout data. Please try again.');
+        }
+      };
+      
+      // Use the provided callback if available, otherwise save directly
+      if (typeof onWorkoutComplete === 'function') {
+        onWorkoutComplete(workoutEntry);
+      } else {
+        saveWorkoutToHistory();
+      }
+      
+      // Show success message
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Reset workout data
+      setCurrentNotes('');
+      setCoordinates([]);
+      setSplits([]);
+    } else {
+      console.log('Workout discarded - no significant distance or duration');
+      // Show feedback that workout was too short
+      Alert.alert("Workout Not Saved", "Your workout was too short to be saved. Make sure to complete some distance for it to be recorded.");
+    }
+    
+    setIsTracking(false);
+  };
+
+    const startTracking = async () => {
+    // Request location permissions first
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
       console.error('Permission to access location was denied');
-      // TODO: Show an alert to the user
+      Alert.alert('Location Permission Required', 'Please enable location permissions to track your workout');
       return;
     }
-
+    
+    // Initialize tracking state
     setIsTracking(true);
     setIsPaused(false);
     setDuration(0);
@@ -262,282 +663,85 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
     setAvgPace(null);
     setCoordinates([]);
     setLastPosition(null);
-    hasAnnouncedStart.current = false;
-
-    try {
-      const subscriber = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.BestForNavigation, 
-          timeInterval: 1000, 
-          distanceInterval: 1, 
-        },
-        (newLocation) => {
-          if (!isTrackingRef.current || isPausedRef.current) return;
-
-          const { latitude, longitude, altitude, speed, accuracy } = newLocation.coords;
-          const timestamp = newLocation.timestamp;
-
-          // Filter out low accuracy GPS updates
-          if (accuracy != null && accuracy > 20) { // 20 meters is a reasonable threshold for accuracy
-            console.log(`Skipping update due to poor accuracy: ${accuracy}m`);
-            return;
-          }
-
-          let calculatedSegmentDistanceKm = 0;
-
-          if (lastPosition) {
-            calculatedSegmentDistanceKm = calculateDistance(
-              lastPosition.latitude,
-              lastPosition.longitude,
+    setEstimatedCalories(0);
+    setSplits([]);
+    setDistanceSinceLastSplitKm(0);
+    setTimeAtLastSplitSeconds(0);
+    hasAnnouncedStartRef.current = false;
+    
+    // Setup timer to track duration every second
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    intervalRef.current = setInterval(() => {
+      if (isTrackingRef.current && !isPausedRef.current) {
+        setDuration(prev => prev + 1);
+      }
+    }, 1000);
+    
+    // Start location tracking if GPS is active
+    if (gpsActive) {
+      console.log('📍 Starting GPS location tracking...');
+      try {
+        // Start location tracking
+        const subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.BestForNavigation,
+            distanceInterval: 5, // Update every 5 meters
+            timeInterval: 5000, // Or at least every 5 seconds
+          },
+          (location) => {
+            // Process new location
+            const { latitude, longitude, altitude } = location.coords;
+            console.log(`📍 New location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+            
+            // Add to coordinates array
+            const newCoord: Coordinate = {
               latitude,
-              longitude
-            );
+              longitude,
+              timestamp: location.timestamp,
+              altitude: altitude || 0
+            };
             
-            // Apply minimum threshold to filter out GPS jitter (2 meters)
-            const MIN_DISTANCE_THRESHOLD = 0.002;
-            if (calculatedSegmentDistanceKm > MIN_DISTANCE_THRESHOLD) {
-                setDistance((prevDistance) => prevDistance + calculatedSegmentDistanceKm);
-            } else {
-                calculatedSegmentDistanceKm = 0; // Reset to zero if under threshold
-                console.log('GPS jitter detected, distance increment ignored');
-            }
-
-            // Calculate Elevation Gain/Loss
-            if (lastPosition.altitude != null && altitude != null) {
-              const altitudeDifference = altitude - lastPosition.altitude;
-              if (altitudeDifference > 0) {
-                setTotalElevationGain((prevGain) => prevGain + altitudeDifference);
-              } else if (altitudeDifference < 0) {
-                setTotalElevationLoss((prevLoss) => prevLoss + Math.abs(altitudeDifference));
-              }
-            }
-          }
-          
-          setCoordinates((prevCoords) => [...prevCoords, { latitude, longitude, altitude, timestamp }]);
-          setLastPosition(newLocation.coords); // Update lastPosition *after* using it
-
-          // --- Pace Calculations --- 
-          // Average Pace is now calculated in a useEffect hook
-
-          // Update Current Pace with improved filtering
-          let newCurrentPace = null;
-          
-          // Minimum movement speed (0.3 m/s is roughly 1 km/h)
-          const MIN_SIGNIFICANT_SPEED = 0.3;
-          // Minimum segment distance for pace calculation (5 meters)
-          const MIN_PACE_DISTANCE = 0.005;
-          
-          // Method 1: Use speed directly from GPS if available and significant
-          if (speed !== null && speed >= MIN_SIGNIFICANT_SPEED) {
-            newCurrentPace = 1000 / speed / 60; // Convert m/s to min/km
+            setCoordinates(prev => [...prev, newCoord]);
             
-            // Apply sanity check for extremely slow/fast paces (1-30 min/km)
-            if (newCurrentPace < 1 || newCurrentPace > 30) {
-              newCurrentPace = null;
-              console.log(`CUR PACE DEBUG: Discarded unrealistic pace from speed=${speed.toFixed(2)} m/s`);
-            } else {
-              console.log(`CUR PACE DEBUG: from speed=${speed.toFixed(2)} m/s, newCurrentPace=${newCurrentPace ? newCurrentPace.toFixed(2) : null}`);
-            }
-          } 
-          // Method 2: Calculate from segment distance and time
-          else if (lastLocationTimestampRef.current && calculatedSegmentDistanceKm >= MIN_PACE_DISTANCE) {
-            const timeDiffSeconds = (timestamp - lastLocationTimestampRef.current) / 1000;
-            
-            // Ensure we have a meaningful time difference (at least 1 second)
-            if (timeDiffSeconds >= 1) {
-                newCurrentPace = calculatePaceMinPerKm(calculatedSegmentDistanceKm, timeDiffSeconds);
+            // Calculate distance if we have a previous position
+            if (lastPosition) {
+              const newSegmentDistance = calculateDistanceInMeters(
+                lastPosition,
+                location.coords
+              ) / 1000; // Convert meters to km
+              
+              // Update total distance
+              if (newSegmentDistance > 0) {
+                setDistance(prevDistance => {
+                  const updatedDistance = prevDistance + newSegmentDistance;
+                  console.log(`📏 Distance updated: ${prevDistance.toFixed(3)} + ${newSegmentDistance.toFixed(3)} = ${updatedDistance.toFixed(3)} km`);
+                  return updatedDistance;
+                });
                 
-                // Apply sanity check for paces
-                if (newCurrentPace !== null && (newCurrentPace < 1 || newCurrentPace > 30)) {
-                  newCurrentPace = null;
-                  console.log(`CUR PACE DEBUG: Discarded unrealistic calculated pace`);
-                } else {
-                  console.log(`CUR PACE DEBUG: from calc: segmentDist=${calculatedSegmentDistanceKm.toFixed(3)}, timeDiff=${timeDiffSeconds.toFixed(1)}, pace=${newCurrentPace ? newCurrentPace.toFixed(2) : null}`);
-                }
-            } else {
-                console.log(`CUR PACE DEBUG: Time difference too small: ${timeDiffSeconds.toFixed(1)}s`);
-            }
-          } else {
-            console.log(`CUR PACE DEBUG: Insufficient data for pace calculation. Speed=${speed?.toFixed(2) || 'null'}, segment=${calculatedSegmentDistanceKm.toFixed(3)}`);
-          }
-          setCurrentPace(newCurrentPace);
-          
-          lastLocationTimestampRef.current = timestamp;
-
-          // --- Other Calculations (Cues, Calories, Splits) ---
-          // Calculate the total distance including the current segment for immediate use in cues/calories
-          const updatedTotalDistance = distanceRef.current + calculatedSegmentDistanceKm;
-
-          // Pace Cues
-          if (runAudioSettings.paceEnabled) {
-            const displayUnitForAudio = runAudioSettings.distanceUnit === 'miles' ? 'mi' : runAudioSettings.distanceUnit;
-            // Use newCurrentPace (calculated in this cycle) and avgPace (state from previous cycle's update) for cues
-            const formattedCurrentPaceForCue = newCurrentPace !== null ? formatPaceDisplay(newCurrentPace, displayUnitForAudio) : '--:--';
-            const formattedAvgPaceForCue = avgPace !== null ? formatPaceDisplay(avgPace, displayUnitForAudio) : '--:--'; // Changed newAvgPace to avgPace (state)
-            checkPaceCue(formattedCurrentPaceForCue, formattedAvgPaceForCue);
-          }
-
-          // Distance Cues
-          // Convert to correct unit in case settings use miles
-          const displayUnitForAudio = runAudioSettings.distanceUnit === 'miles' ? 'mi' : runAudioSettings.distanceUnit;
-          const convertedDistance = displayUnitForAudio === 'mi' ? updatedTotalDistance * 0.621371 : updatedTotalDistance;
-          
-          // Log distance for debugging
-          console.log(`DISTANCE CUE DEBUG: Raw=${updatedTotalDistance.toFixed(3)}km, Converted=${convertedDistance.toFixed(3)}${displayUnitForAudio}, Interval=${runAudioSettings.distanceInterval}`);
-          
-          // Send distance update for audio cue checks
-          checkDistanceCue(updatedTotalDistance);
-
-          // Calorie Estimation
-          if (updatedTotalDistance > 0) { // Changed currentTotalDistance to updatedTotalDistance
-            const calories = DEFAULT_USER_WEIGHT_KG * updatedTotalDistance * 1.036; // Changed currentTotalDistance to updatedTotalDistance
-            setEstimatedCalories(calories);
-          }
-
-          // Split Tracking (uses calculatedSegmentDistanceKm)
-          if (calculatedSegmentDistanceKm > 0) {
-            setDistanceSinceLastSplitKm(prevDistSinceSplit => {
-              const newDistSinceSplit = prevDistSinceSplit + calculatedSegmentDistanceKm;
-              if (newDistSinceSplit >= SPLIT_DISTANCE_KM) {
-                const totalDurationForSplit = durationRef.current;
-                const splitDurationSeconds = totalDurationForSplit - timeAtLastSplitSeconds;
-                const numericSplitPace = calculatePaceMinPerKm(SPLIT_DISTANCE_KM, splitDurationSeconds);
-
-                const newSplitData: Split = {
-                  splitNumber: splits.length + 1,
-                  distance: SPLIT_DISTANCE_KM * 1000,
-                  duration: splitDurationSeconds,
-                  pace: numericSplitPace !== null ? decimalMinutesToTime(numericSplitPace) : '--:--',
-                };
-                setSplits(prevSplits => [...prevSplits, newSplitData]);
-
-                const formattedPaceForAnnouncement = numericSplitPace !== null 
-                  ? formatPaceDisplay(numericSplitPace, runAudioSettings.distanceUnit === 'miles' ? 'mi' : runAudioSettings.distanceUnit)
-                  : "pace unavailable";
-                announceSplit(newSplitData.splitNumber, formattedPaceForAnnouncement);
-
-                setDistanceSinceLastSplitKm(newDistSinceSplit % SPLIT_DISTANCE_KM);
-                setTimeAtLastSplitSeconds(totalDurationForSplit);
-                return newDistSinceSplit % SPLIT_DISTANCE_KM;
+                // Also update distance since last split
+                setDistanceSinceLastSplitKm(prev => prev + newSegmentDistance);
               }
-              return newDistSinceSplit;
-            });
+            }
+            
+            // Update last position with just the coordinate data
+            setLastPosition(location.coords);
           }
-        }
-      );
-      locationSubscription.current = subscriber;
-    } catch (error) {
-      console.error('Error starting workout tracking:', error);
-      setIsTracking(false);
-      // TODO: Show an alert to the user
+        );
+        
+        // Now we can safely set the subscription
+        setLocationSubscription(subscription);
+        console.log('✅ GPS tracking started successfully');
+      } catch (error) {
+        console.error('❌ Failed to start GPS tracking:', error);
+        Alert.alert('GPS Error', 'Failed to start location tracking. Your workout will be tracked using step count instead.');
+        setGpsActive(false);
+      }
     }
   };
 
-  // Refs for state values needed in callbacks
-  // isPausedRef is defined earlier (around line 79)
-
-
-  const pauseTracking = () => {
-    setIsPaused(!isPaused);
-    if (!isPaused) { // Pausing
-        // Speech.speak("Workout paused."); // Handled by useAudioCues if desired
-    } else { // Resuming
-        // Speech.speak("Workout resumed.");
-        hasAnnouncedStart.current = true; // Don't re-announce start
-    }
-  };
-
-  const stopTracking = async () => {
-    // For announcements, use the audio cue's distance unit preference
-    const audioCueUnitForPace = runAudioSettings.distanceUnit === 'miles' ? 'mi' : runAudioSettings.distanceUnit;
-    const formattedAvgPaceForAnnouncement = avgPace !== null 
-      ? formatPaceDisplay(avgPace, audioCueUnitForPace) 
-      : 'Not available'; // useAudioCues's formatPace will handle this for speech
-    
-    announceWorkoutEnd(duration, distance, formattedAvgPaceForAnnouncement);
-
-    // --- Save Workout Data --- 
-    // Get the proper plan name from user settings race goal or passed in plan
-    const planDisplay = settings.raceGoal?.type 
-      ? settings.raceGoal.type.charAt(0).toUpperCase() + settings.raceGoal.type.slice(1) // Capitalize race goal type
-      : currentPlan?.raceType 
-      ? currentPlan.raceType
-      : 'Free Run';
-    
-    const newWorkoutEntry: WorkoutEntry = {
-      id: new Date().getTime().toString(),
-      date: new Date().toISOString(),
-      duration: duration, // in seconds
-      distance: Math.round(distance * 1000), // Convert km to meters and round
-      avgPace: avgPace === null ? undefined : avgPace, // Convert null to undefined for storage
-      coordinates: coordinates,
-      planName: planDisplay, // Use the properly formatted plan name
-      totalElevationGain: Math.round(totalElevationGain),
-      totalElevationLoss: Math.round(totalElevationLoss),
-      notes: currentNotes, // Save current notes
-      calories: Math.round(estimatedCalories),
-      avgHeartRate: undefined, // Placeholder
-      splits: splits, // Save recorded splits
-    };
-
-    try {
-      const existingHistoryJson = await AsyncStorage.getItem(WORKOUT_HISTORY_KEY);
-      const existingHistory: WorkoutEntry[] = existingHistoryJson ? JSON.parse(existingHistoryJson) : [];
-      existingHistory.push(newWorkoutEntry);
-      await AsyncStorage.setItem(WORKOUT_HISTORY_KEY, JSON.stringify(existingHistory));
-    } catch (e) {
-      console.error('Failed to save workout history:', e);
-      // Optionally, inform the user about the failure
-    }
-    // --- End Save Workout Data ---
-
-    setIsTracking(false);
-    setIsPaused(false);
-    
-    if (locationSubscription.current) {
-      locationSubscription.current.remove();
-      locationSubscription.current = null;
-    }
-
-    // Original workoutData for onWorkoutComplete prop, if still needed for other purposes
-    const workoutDataForProp = {
-      duration,
-      distance: parseFloat(distance.toFixed(2)),
-      avgPace,
-      coordinates,
-      date: new Date().toISOString(),
-      planType: currentPlan?.raceType || 'Free Run',
-      fitnessLevel: currentPlan?.fitnessLevel || 'N/A',
-      audioSettingsUsed: runAudioSettings, // Save the settings used for this run
-    };
-    
-      if (onWorkoutComplete) {
-        onWorkoutComplete(workoutDataForProp);
-    }
-    
-    // Reset for next workout
-    setDuration(0);
-    setDistance(0);
-    setCurrentPace(null);
-    setAvgPace(null);
-    setCoordinates([]);
-    setLastPosition(null);
-    setCurrentNotes(''); // Reset notes
-    setEstimatedCalories(0); // Reset calories
-    setSplits([]); // Reset splits array
-    setDistanceSinceLastSplitKm(0); // Reset distance for current split
-    setTimeAtLastSplitSeconds(0); // Reset time for current split
-    setTotalElevationGain(0); // Also reset elevation
-    setTotalElevationLoss(0); // Also reset elevation
-    hasAnnouncedStart.current = false;
-  };
-
-  const handleSaveAudioSettings = (newSettings: AudioCueSettingsData) => {
-    setRunAudioSettings(newSettings); // Update settings for the current run
-    updateAudioCueDefaults(newSettings); // Optionally update global defaults
-    setShowAudioSettings(false);
-  };
-
+  // Show audio settings modal if enabled
   if (showAudioSettings) {
     return (
       <AudioCueSettings
@@ -547,7 +751,12 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
       />
     );
   }
-
+  
+  // Function to handle saving audio settings
+  function handleSaveAudioSettings(newSettings: AudioCueSettingsData) {
+    updateRunAudioSettings(newSettings);
+  }
+  
   return (
     <ScrollView
       style={styles.container}
@@ -557,26 +766,26 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
         <View style={styles.headerContent}>
           <Text style={styles.title}>Workout Tracker</Text>
           <Text style={styles.subtitle}>
-            {settings.raceGoal && settings.fitnessLevel
-              ? `Training for ${formatRaceType(settings.raceGoal.type)} • ${settings.fitnessLevel} level`
+            {userSettingsRef.current?.raceGoal?.type && userSettingsRef.current?.fitnessLevel
+              ? `Training for ${formatRaceType(userSettingsRef.current.raceGoal.type)} • ${userSettingsRef.current.fitnessLevel} level`
               : 'Free run mode'}
           </Text>
         </View>
       </View>
 
-      {(runAudioSettings.distanceEnabled || runAudioSettings.paceEnabled) && !isLoadingSettings && (
+      {(runAudioSettings.announceDistance || runAudioSettings.announcePace) && !isLoadingSettings && (
         <View style={styles.audioCuesInfoSection}>
-          {runAudioSettings.distanceEnabled && (
+          {runAudioSettings.announceDistance && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
                 {runAudioSettings.distanceInterval} {runAudioSettings.distanceUnit} alerts
               </Text>
             </View>
           )}
-          {runAudioSettings.paceEnabled && (
+          {runAudioSettings.announcePace && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
-                Pace: {runAudioSettings.targetPace} (±{runAudioSettings.paceTolerance}s)
+                Pace alerts enabled
               </Text>
             </View>
           )}
@@ -586,23 +795,23 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
       {/* Stats Display */}
       <View style={styles.statsGrid}>
         <View style={styles.statCard}>
-          <Clock size={28} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
+          <Clock size={28} color={userSettingsRef.current?.raceGoal ? getRaceColor(userSettingsRef.current.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
           <Text style={styles.statValue}>{formatDurationDisplay(duration)}</Text>
           <Text style={styles.statLabel}>Duration</Text>
         </View>
         <View style={styles.statCard}>
-          <MapPin size={24} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
-          <Text style={styles.statValue}>{formatDistanceDisplay(distance * 1000, settings.displayUnit)}</Text>
+          <Target size={24} color={userSettingsRef.current?.raceGoal ? getRaceColor(userSettingsRef.current.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
+          <Text style={styles.statValue}>{formatDistanceDisplay(distance, userSettingsRef.current?.displayUnit === 'mi' ? 'miles' : 'km')}</Text>
           <Text style={styles.statLabel}>Distance</Text>
         </View>
         <View style={styles.statCard}>
-          <Zap size={24} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
-          <Text style={styles.statValue}>{currentPace !== null ? formatPaceDisplay(currentPace, settings.displayUnit) : '--:--'}</Text>
+          <MapPin size={24} color={userSettingsRef.current?.raceGoal ? getRaceColor(userSettingsRef.current.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
+          <Text style={styles.statValue}>{currentPace !== null ? formatPaceDisplay(currentPace, userSettingsRef.current?.displayUnit === 'mi' ? 'miles' : 'km') : '--:--'}</Text>
           <Text style={styles.statLabel}>Current Pace</Text>
         </View>
         <View style={styles.statCard}>
-          <Zap size={24} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
-          <Text style={styles.statValue}>{avgPace !== null ? formatPaceDisplay(avgPace, settings.displayUnit) : '--:--'}</Text>
+          <Zap size={24} color={userSettingsRef.current?.raceGoal ? getRaceColor(userSettingsRef.current.raceGoal.type) : "#FFA500"} style={styles.statIcon} />
+          <Text style={styles.statValue}>{avgPace !== null ? formatPaceDisplay(avgPace, userSettingsRef.current?.displayUnit === 'mi' ? 'miles' : 'km') : '--:--'}</Text>
           <Text style={styles.statLabel}>Avg Pace</Text>
         </View>
       </View>
@@ -627,13 +836,13 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
       <View style={styles.controlsSection}>
         {isCountingDown ? (
         <View style={[styles.button, styles.countdownButton]}>
-          <Text style={styles.countdownText}>{countdownSeconds}</Text>
+          <Text style={styles.countdownText}>{countdownValue}</Text>
           <Text style={styles.buttonText}>Starting soon...</Text>
         </View>
       ) : !isTracking ? (
         <TouchableOpacity
           onPress={initiateCountdown}
-          style={[styles.button, styles.startButton, settings.raceGoal && { backgroundColor: getRaceColor(settings.raceGoal.type) }]}
+          style={[styles.button, styles.startButton, userSettingsRef.current?.raceGoal && { backgroundColor: getRaceColor(userSettingsRef.current.raceGoal.type) }]}
         >
           <Play size={24} color="#FFF" style={styles.buttonIcon} />
           <Text style={styles.buttonText}>Start Run</Text>
@@ -654,15 +863,26 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
           </View>
         )}
       </View>
+      
+      {/* Pedometer Tracking Mode Component */}
+      {/* Show before tracking starts or during tracking */}
+      <PedometerTrackingMode 
+        isActive={isTracking && !isPaused}
+        gpsDistanceKm={distance}
+        onStepDistanceUpdate={handleStepDistanceUpdate}
+        onHybridDistanceUpdate={handleHybridDistanceUpdate}
+        gpsActive={gpsActive}
+        onGpsActiveChange={handleGpsActiveChange}
+      />
 
       {/* Settings Button - only shown when not tracking */}
       {!isTracking && (
         <TouchableOpacity 
           onPress={() => setShowAudioSettings(true)} 
-          style={styles.settingsButtonContainer}
+          style={styles.userSettingsButtonContainer}
         >
-          <Settings size={22} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} />
-          <Text style={styles.settingsButtonText}>Audio Settings</Text>
+          <Settings size={22} color={userSettingsRef.current?.raceGoal ? getRaceColor(userSettingsRef.current.raceGoal.type) : "#FFA500"} />
+          <Text style={styles.userSettingsButtonText}>Audio Cue Settings</Text>
         </TouchableOpacity>
       )}
 
@@ -670,7 +890,7 @@ const WorkoutTracker: React.FC<WorkoutTrackerProps> = ({ route, onWorkoutComplet
       {isTracking && !isPaused && (
         <View style={styles.coachTipCard}>
           <View style={styles.coachTipHeader}>
-            <Target size={20} color={settings.raceGoal ? getRaceColor(settings.raceGoal.type) : "#FFA500"} style={styles.buttonIcon} />
+            <Target size={20} color={userSettingsRef.current?.raceGoal ? getRaceColor(userSettingsRef.current.raceGoal.type) : "#FFA500"} style={styles.buttonIcon} />
             <Text style={styles.coachTipTitle}>Coach Tips</Text>
           </View>
           <Text style={styles.coachTipText}>
@@ -714,10 +934,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#AAA',
   },
-  settingsButton: {
+  userSettingsButton: {
     padding: 8,
   },
-  settingsButtonContainer: {
+  userSettingsButtonContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -728,7 +948,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 165, 0, 0.3)',
   },
-  settingsButtonText: {
+  userSettingsButtonText: {
     color: '#FFA500',
     marginLeft: 8,
     fontSize: 16,
@@ -755,17 +975,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 25,
+    marginTop: 10
   },
   statCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    width: '48%',
-    padding: 15,
-    borderRadius: 8,
     alignItems: 'center',
-    marginBottom: 15,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 1,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#333',
+    width: '48%',
+    marginBottom: 8
   },
   statIcon: {
     marginBottom: 8,
