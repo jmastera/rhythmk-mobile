@@ -115,7 +115,7 @@ export const createTables = async (tx) => {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         activityType TEXT NOT NULL,
         customActivityName TEXT,
-        date TEXT NOT NULL, -- YYYY-MM-DD
+        date TEXT NOT NULL, -- MM-DD-YYYY
         duration INTEGER NOT NULL, -- Store duration in seconds
         intensity TEXT, -- e.g., 'Low', 'Medium', 'High'
         notes TEXT,

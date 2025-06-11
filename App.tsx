@@ -7,6 +7,7 @@ import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-cont
 import { StatusBar as RNStatusBar, View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { UserSettingsProvider } from './src/contexts/UserSettingsContext';
 
 // Import SQLite
 import SQLite from 'react-native-sqlite-storage';
@@ -265,8 +266,10 @@ function AppContent() {
   return (
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
-        <AppNavigation />
-        <StatusBar style="auto" />
+        <UserSettingsProvider>
+          <AppNavigation />
+          <StatusBar style="auto" />
+        </UserSettingsProvider>
       </SafeAreaProvider>
     </QueryClientProvider>
   );

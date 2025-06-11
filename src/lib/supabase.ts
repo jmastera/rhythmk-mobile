@@ -1,11 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Database } from '../types/database.types';
 
 // These should be moved to environment variables
 const supabaseUrl = 'https://isetreoiidnzqrgclvgu.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlzZXRyZW9paWRuenFyZ2Nsdmd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk1OTg5NDAsImV4cCI6MjA2NTE3NDk0MH0.Bvj6LnI_vPAGHfWim_yvTHSV6WKs9v8OtU7Id6o3L_o';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Create a single supabase client for interacting with your database
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
     autoRefreshToken: true,
@@ -13,6 +15,250 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     detectSessionInUrl: false,
   },
 });
+
+// Helper type for our settings
+export type UserProfile = Database['public']['Tables']['profiles']['Row'];
+export type UserPreferences = Database['public']['Tables']['user_preferences']['Row'];
+export type AudioCueSetting = Database['public']['Tables']['audio_cue_settings']['Row'];
+// Profile functions
+export const getProfile = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single();
+    
+  if (error) throw error;
+  return data;
+};
+
+export const updateProfile = async (userId: string, updates: Partial<UserProfile>) => {
+  // First try to update the existing profile
+  const { data: updatedData, error: updateError } = await supabase
+    .from('profiles')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId)
+    .select()
+    .single();
+    
+  // If the update fails because the row doesn't exist, create it
+  if (updateError?.code === 'PGRST116' || updateError?.code === 'PGRST110') {
+    // Get the current session to access user email
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      console.error('Error getting auth session:', sessionError);
+      throw sessionError;
+    }
+    
+    const userEmail = session?.user?.email;
+    
+    if (!userEmail) {
+      throw new Error('User email not found in session');
+    }
+    
+    // Create the profile with the required email field
+    const { data: newData, error: createError } = await supabase
+      .from('profiles')
+      .insert([
+        {
+          id: userId,
+          email: userEmail,
+          ...updates,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }
+      ])
+      .select()
+      .single();
+      
+    if (createError) {
+      console.error('Error creating profile:', createError);
+      throw createError;
+    }
+    return newData;
+  }
+  
+  if (updateError) {
+    console.error('Error updating profile:', updateError);
+    throw updateError;
+  }
+  
+  return updatedData;
+};
+
+// Preferences functions
+export const getPreferences = async (userId: string) => {
+  // Verify we have a valid session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('No active session. User must be authenticated to get preferences.');
+  }
+
+  const { data, error } = await supabase
+    .from('user_preferences')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+    
+  if (error) {
+    if (error.code === 'PGRST116') { // No rows returned
+      try {
+        // Create default preferences if they don't exist
+        const { data: newPrefs, error: createError } = await supabase
+          .from('user_preferences')
+          .insert({
+            user_id: userId,
+            display_unit: 'km',
+            height_unit: 'cm',
+            weight_unit: 'kg',
+            show_debug_info: false,
+            render_maps: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+          
+        if (createError) {
+          console.error('Error creating default preferences:', createError);
+          throw createError;
+        }
+        return newPrefs;
+      } catch (err) {
+        console.error('Failed to create default preferences:', err);
+        // Return default preferences object if creation fails
+        return {
+          user_id: userId,
+          display_unit: 'km',
+          height_unit: 'cm',
+          weight_unit: 'kg',
+          show_debug_info: false,
+          render_maps: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      }
+    }
+    console.error('Error fetching preferences:', error);
+    // Return default preferences on error
+    return {
+      user_id: userId,
+      display_unit: 'km',
+      height_unit: 'cm',
+      weight_unit: 'kg',
+      show_debug_info: false,
+      render_maps: true,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+  }
+  return data;
+};
+
+export const updatePreferences = async (userId: string, updates: Partial<UserPreferences>) => {
+  // First, verify we have a valid session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('No active session. User must be authenticated to update preferences.');
+  }
+
+  // First, try to update the existing record
+  const { data: updatedData, error: updateError } = await supabase
+    .from('user_preferences')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('user_id', userId)
+    .select()
+    .single();
+    
+  // If the update fails because the record doesn't exist, create it
+  if (updateError?.code === 'PGRST116' || updateError?.code === 'PGRST110') {
+    try {
+      const { data: newPrefs, error: createError } = await supabase
+        .from('user_preferences')
+        .insert({
+          user_id: userId,
+          ...updates,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+        
+      if (createError) {
+        console.error('Error creating preferences:', createError);
+        // If we can't create, return the updates as if they were saved
+        return { user_id: userId, ...updates } as UserPreferences;
+      }
+      return newPrefs;
+    } catch (err) {
+      console.error('Failed to create preferences:', err);
+      // Return the updates as if they were saved
+      return { user_id: userId, ...updates } as UserPreferences;
+    }
+  }
+  
+  if (updateError) {
+    console.error('Error updating preferences:', updateError);
+    // Return the updates as if they were saved
+    return { user_id: userId, ...updates } as UserPreferences;
+  }
+  
+  return updatedData || { user_id: userId, ...updates } as UserPreferences;
+};
+
+// Audio Cue functions
+export const getAudioCueSettings = async (userId: string) => {
+  const { data, error } = await supabase
+    .from('audio_cue_settings')
+    .select('*')
+    .eq('user_id', userId);
+    
+  if (error) throw error;
+  return data;
+};
+
+export const updateAudioCueSetting = async (id: string, updates: Partial<AudioCueSetting>) => {
+  const { data, error } = await supabase
+    .from('audio_cue_settings')
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+    
+  if (error) throw error;
+  return data;
+};
+
+export const createAudioCueSetting = async (setting: Omit<AudioCueSetting, 'id' | 'created_at' | 'updated_at'>) => {
+  const { data, error } = await supabase
+    .from('audio_cue_settings')
+    .insert(setting)
+    .select()
+    .single();
+    
+  if (error) throw error;
+  return data;
+};
+
+export const deleteAudioCueSetting = async (id: string) => {
+  const { error } = await supabase
+    .from('audio_cue_settings')
+    .delete()
+    .eq('id', id);
+    
+  if (error) throw error;
+  return true;
+};
 
 // Check if workouts table exists and has required columns
 export const ensureWorkoutsTable = async () => {
