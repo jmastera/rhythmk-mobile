@@ -1,4 +1,5 @@
 // src/utils/units.ts
+import { DisplayUnit } from '../types/userTypes';
 
 export const KM_TO_MILES = 0.621371;
 export const MILES_TO_KM = 1 / KM_TO_MILES;
@@ -26,17 +27,19 @@ export const decimalMinutesToTime = (decimalMinutes: number): string => {
  */
 export const formatDistanceDisplay = (
   distanceMeters: number | undefined,
-  displayUnit: 'km' | 'mi',
+  displayUnit: DisplayUnit,
 ): string => {
   if (distanceMeters === undefined || isNaN(distanceMeters)) {
-    return `0.0 ${displayUnit}`;
+    // Ensure the unit suffix matches the actual type, e.g., 'miles' not 'mi'
+    // However, the displayUnit variable itself should be correct, so we just use it.
+    return `0.00 ${displayUnit}`;
   }
   const distanceKm = distanceMeters / 1000;
-  if (displayUnit === 'mi') {
+  if (displayUnit === 'miles') {
     const distanceMiles = distanceKm * KM_TO_MILES;
-    return `${distanceMiles.toFixed(1)} mi`;
+    return `${distanceMiles.toFixed(2)} miles`;
   }
-  return `${distanceKm.toFixed(1)} km`;
+  return `${distanceKm.toFixed(2)} km`;
 };
 
 /**
@@ -47,7 +50,7 @@ export const formatDistanceDisplay = (
  */
 export const formatPaceDisplay = (
   avgPaceMinPerKm: number | undefined,
-  displayUnit: 'km' | 'mi',
+  displayUnit: DisplayUnit,
 ): string => {
   if (avgPaceMinPerKm === undefined || isNaN(avgPaceMinPerKm) || avgPaceMinPerKm <= 0) {
     return `--:-- /${displayUnit}`;
@@ -56,7 +59,7 @@ export const formatPaceDisplay = (
   let paceToFormat = avgPaceMinPerKm;
   let unitSuffix = `/${displayUnit}`;
 
-  if (displayUnit === 'mi') {
+  if (displayUnit === 'miles') {
     paceToFormat = avgPaceMinPerKm * KM_TO_MILES; // Convert pace to min/mile
   }
 
@@ -111,7 +114,7 @@ export const formatDurationDisplay = (totalSeconds: number): string => {
 
 export const formatSplitPaceDisplay = (
   paceValue: string | number | undefined,
-  displayUnit: 'km' | 'mi',
+  displayUnit: DisplayUnit,
 ): string => {
   if (paceValue === undefined) {
     return `--:-- /${displayUnit}`;

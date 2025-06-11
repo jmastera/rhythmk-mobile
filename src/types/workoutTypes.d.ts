@@ -43,6 +43,7 @@ export interface WorkoutEntry {
   avgHeartRate?: number; // Avg heart rate if available
   splits?: Split[]; // Array of split data
   trackingMode?: 'gps' | 'pedometer' | 'hybrid'; // Added for step counter integration
+  steps?: number; // Total steps recorded during the workout
 }
 
 // Tracking mode options

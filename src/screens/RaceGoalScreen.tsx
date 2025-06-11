@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { ArrowLeft, CheckCircle, Zap, Edit3 } from 'lucide-react-native';
-import { useUserSettings, RaceGoalData } from '../hooks/useUserSettings';
+import { useUserSettings } from '../hooks/useUserSettings';
+import { RaceGoalData } from '../types/userTypes';
 import RaceTypeSelector from '../components/RaceTypeSelector';
 import TrainingPlan from '../components/TrainingPlan';
 import { HeaderSafeArea } from '../components/HeaderSafeArea';
@@ -14,7 +15,13 @@ const isStepEqual = (currentStep: Step, targetStep: Step): boolean => {
   return currentStep === targetStep;
 };
 
-const FITNESS_LEVELS = [
+interface FitnessLevel {
+  id: 'beginner' | 'intermediate' | 'advanced';
+  name: string;
+  description: string;
+}
+
+const FITNESS_LEVELS: FitnessLevel[] = [
   { id: 'beginner', name: 'Beginner', description: 'Just starting out or returning after a break.' },
   { id: 'intermediate', name: 'Intermediate', description: 'Comfortable with regular runs, looking to improve.' },
   { id: 'advanced', name: 'Advanced', description: 'Experienced runner aiming for peak performance.' },
@@ -31,7 +38,7 @@ const RaceGoalScreen = () => {
   const { settings, updateSettings, isLoadingSettings } = useUserSettings();
 
   const [step, setStep] = useState<Step>('selectFitness');
-  const [flowFitnessLevel, setFlowFitnessLevel] = useState<string | null>(null);
+  const [flowFitnessLevel, setFlowFitnessLevel] = useState<'beginner' | 'intermediate' | 'advanced' | null>(null);
   const [flowRaceType, setFlowRaceType] = useState<string | null>(null);
   const [flowRaceGoalDetails, setFlowRaceGoalDetails] = useState<RaceGoalData | null>(null);
   const [isInitializedFromSettings, setIsInitializedFromSettings] = useState(false);
@@ -53,8 +60,9 @@ const RaceGoalScreen = () => {
     }
   }, [settings, isLoadingSettings, isInitializedFromSettings]);
 
-  const handleFitnessSelect = (levelId: string) => {
-    setFlowFitnessLevel(levelId);
+  const handleFitnessSelect = (level: FitnessLevel | string) => {
+    const levelId = typeof level === 'string' ? level : level.id;
+    setFlowFitnessLevel(levelId as 'beginner' | 'intermediate' | 'advanced');
     setFlowRaceType(null); // Reset subsequent selections
     setFlowRaceGoalDetails(null);
     setStep('selectRaceType');

@@ -61,25 +61,48 @@ const HistoryScreen: React.FC = () => {
 
         try {
           // 1. Fetch runs from AsyncStorage
+          console.log('Loading workouts from AsyncStorage...');
           const storedWorkoutsJson = await AsyncStorage.getItem(WORKOUT_HISTORY_KEY);
+          console.log('Stored workouts JSON:', storedWorkoutsJson);
+          
           if (storedWorkoutsJson) {
-            const parsedRuns: WorkoutEntry[] = JSON.parse(storedWorkoutsJson);
-            const runItems: RunHistoryItem[] = parsedRuns.map(run => ({ ...run, source: 'run' as const, id: run.id }));
-            combinedHistory.push(...runItems);
+            try {
+              const parsedRuns: WorkoutEntry[] = JSON.parse(storedWorkoutsJson);
+              console.log(`Parsed ${parsedRuns.length} runs from storage`);
+              const runItems: RunHistoryItem[] = parsedRuns.map(run => {
+                // Create a new object with just the fields we need
+                const runItem: RunHistoryItem = {
+                  ...run,
+                  source: 'run' as const,
+                  id: run.id,
+                  date: run.date // Just use the date field
+                };
+                return runItem;
+              });
+              combinedHistory.push(...runItems);
+            } catch (parseError) {
+              console.error('Error parsing stored workouts:', parseError);
+            }
+          } else {
+            console.log('No workouts found in AsyncStorage');
           }
 
-          // 2. Fetch logged activities from SQLite
-          // getActivities returns Promise<{ success: boolean; data?: LoggedActivity[]; error?: string; }>
-          const dbActivitiesResult = await getActivities(); 
-          if (dbActivitiesResult.success && Array.isArray(dbActivitiesResult.data)) {
-            const loggedItems: LoggedActivityItem[] = dbActivitiesResult.data.map((act: LoggedActivity) => ({
-              ...act,
-              source: 'logged' as const,
-              id: act.id, 
-            }));
-            combinedHistory.push(...loggedItems);
-          } else if (!dbActivitiesResult.success) {
-            console.error('Failed to load logged activities:', dbActivitiesResult.error);
+          // 2. Fetch logged activities from SQLite if needed
+          try {
+            const dbActivitiesResult = await getActivities();
+            if (dbActivitiesResult.success && Array.isArray(dbActivitiesResult.data)) {
+              console.log(`Found ${dbActivitiesResult.data.length} activities from database`);
+              const loggedItems: LoggedActivityItem[] = dbActivitiesResult.data.map((act: LoggedActivity) => ({
+                ...act,
+                source: 'logged' as const,
+                id: act.id,
+              }));
+              combinedHistory.push(...loggedItems);
+            } else if (!dbActivitiesResult.success) {
+              console.error('Failed to load logged activities:', dbActivitiesResult.error);
+            }
+          } catch (dbError) {
+            console.error('Error loading activities from database:', dbError);
           }
 
           // 3. Sort combined history by date, most recent first

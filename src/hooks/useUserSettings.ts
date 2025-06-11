@@ -1,28 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Import the AudioCueSettingsData interface from types file
+// Import types from type definitions
 import { AudioCueSettingsData } from '../types/audioTypes';
+import { 
+  UserSettings, 
+  RaceGoalData,
+  DisplayUnit
+} from '../types/userTypes';
 
-export interface RaceGoalData {
-  type: string; // e.g., '5k', '10k', 'Half Marathon', 'Full Marathon', 'Custom Distance', 'Custom Time'
-  distance?: number; // in km or miles, depending on unit preference (not yet in settings)
-  time?: string; // hh:mm:ss or mm:ss
-  // Potentially add targetPace here too if it's part of the goal itself
-}
+export type WorkoutCardType = 'distance' | 'duration' | 'pace' | 'steps' | 'calories' | 'stride' | 'cadence' | 'speed' | 'elevationGain' | 'caloriesPerKm';
 
-export interface UserSettings {
-  audioCueDefaults: AudioCueSettingsData;
-  fitnessLevel?: string; // e.g., 'beginner', 'intermediate', 'advanced'
-  raceGoal?: RaceGoalData;
-  displayUnit: 'km' | 'mi'; // Global display unit preference
-  heightUnit: 'cm' | 'ft-in'; // Height unit preference (cm or feet-inches)
-  weightUnit: 'kg' | 'lb'; // Weight unit preference (kg or pounds)
-  renderMapsDebug?: boolean; // Add other global settings here in the future
-  userHeight?: number; // User height in cm for stride length calculation (always stored in cm internally)
-  userWeight?: number; // User weight in kg for potential calorie calculations (always stored in kg internally)
-  userHeightFeet?: number; // For display only when using imperial units
-  userHeightInches?: number; // For display only when using imperial units
+export interface WorkoutCardSettings {
+  distance: boolean;
+  duration: boolean;
+  pace: boolean;
+  steps: boolean;
+  calories: boolean;
+  stride: boolean;
+  cadence: boolean;
+  speed: boolean;
+  elevationGain: boolean;
+  caloriesPerKm: boolean;
 }
 
 const defaultAudioCueSettings: AudioCueSettingsData = {
@@ -40,7 +39,13 @@ const defaultAudioCueSettings: AudioCueSettingsData = {
   splitAnnouncementsEnabled: true, // Default to true
 };
 
-const defaultUserSettings: UserSettings = {
+// Extend the base UserSettings with our app-specific settings
+type AppUserSettings = UserSettings & {
+  audioCueDefaults: AudioCueSettingsData;
+  workoutCardSettings: WorkoutCardSettings;
+};
+
+const defaultUserSettings: AppUserSettings = {
   audioCueDefaults: defaultAudioCueSettings,
   fitnessLevel: undefined,
   raceGoal: undefined,
@@ -48,6 +53,19 @@ const defaultUserSettings: UserSettings = {
   heightUnit: 'cm', // Default to metric units
   weightUnit: 'kg', // Default to metric units
   renderMapsDebug: true, // Default to true, maps render by default
+  showDebugInfo: false, // Default to false, only show debug info when explicitly enabled
+  workoutCardSettings: {
+    distance: true,
+    duration: true,
+    pace: true,
+    steps: true,
+    calories: true,
+    stride: true,
+    cadence: true,
+    speed: true,
+    elevationGain: true,
+    caloriesPerKm: true,
+  },
   userHeightFeet: undefined,
   userHeightInches: undefined,
 };

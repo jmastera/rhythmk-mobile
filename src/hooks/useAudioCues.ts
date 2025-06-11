@@ -7,9 +7,15 @@ import { AudioCueSettingsData } from '../types/audioTypes';
 interface UseAudioCuesProps {
   settings?: AudioCueSettingsData; // Optional: settings for a specific run
   isTracking: boolean;
+  isPausedRef: React.RefObject<boolean>;
+  currentPace?: number; // Current pace in min/km or min/mile
+  distance?: number; // Current distance in km or miles
+  targetPace?: number; // Target pace in min/km or min/mile
+  targetDistance?: number; // Target distance in km or miles
+  workoutType?: string; // Type of workout, e.g., 'run', 'cycle'
 }
 
-export const useAudioCues = ({ settings: runSpecificSettings, isTracking }: UseAudioCuesProps) => {
+export const useAudioCues = ({ settings: runSpecificSettings, isTracking, isPausedRef, currentPace, distance, targetPace, targetDistance, workoutType }: UseAudioCuesProps) => {
   const { settings: userSettings, isLoadingSettings } = useUserSettings();
 
   // Effective settings should only be calculated once settings are loaded

@@ -13,6 +13,9 @@ export interface TrainingPlan {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  type?: string; // e.g., "Run", "Cycle", from workoutTypes.ts, or specific workout type from plan
+  targetDistance?: number; // in meters, for the specific session/workout
+  targetPace?: number; // decimal minutes per km or mile, for the specific session/workout
 }
 
 export interface PlanSession {

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import MapView, { Polyline } from 'react-native-maps';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { formatPaceDisplay, formatDistanceDisplay, formatDurationDisplay } from '../utils/units';
+import { DisplayUnit } from '../types/userTypes';
 import { WorkoutEntry, Split } from '../types/history'; // Adjusted path for WorkoutEntry
 import { Calendar, MapPin, Clock, Zap, Heart, Flame, Edit3, TrendingUp, ChevronsDown, ChevronsUp } from 'lucide-react-native';
 
@@ -77,21 +78,103 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) =
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Performance</Text>
         <View style={styles.gridContainer}>
-          <View style={styles.gridItem}>
-            <MapPin size={20} color="#9ca3af" style={styles.gridIcon} />
-            <Text style={styles.gridValue}>{typeof workout.distance === 'number' && isFinite(workout.distance) ? formatDistanceDisplay(workout.distance, settings.displayUnit) : 'N/A'}</Text>
-            <Text style={styles.gridLabel}>Distance</Text>
-          </View>
-          <View style={styles.gridItem}>
-            <Clock size={20} color="#9ca3af" style={styles.gridIcon} />
-            <Text style={styles.gridValue}>{typeof workout.duration === 'number' && isFinite(workout.duration) ? formatDurationDisplay(workout.duration) : 'N/A'}</Text>
-            <Text style={styles.gridLabel}>Duration</Text>
-          </View>
-          <View style={styles.gridItem}>
-            <TrendingUp size={20} color="#9ca3af" style={styles.gridIcon} />
-            <Text style={styles.gridValue}>{typeof workout.avgPace === 'number' && isFinite(workout.avgPace) ? formatPaceDisplay(workout.avgPace, settings.displayUnit) : `--:-- /${settings.displayUnit}`}</Text>
-            <Text style={styles.gridLabel}>Avg Pace</Text>
-          </View>
+          {settings.workoutCardSettings?.distance !== false && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>📍</Text>
+              <Text style={styles.gridValue}>
+  {typeof workout.distance === 'number' && isFinite(workout.distance) 
+    ? formatDistanceDisplay(workout.distance, settings.displayUnit as DisplayUnit) 
+    : 'N/A'}
+</Text>
+              <Text style={styles.gridLabel}>Distance</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.duration !== false && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>⏱️</Text>
+              <Text style={styles.gridValue}>{typeof workout.duration === 'number' && isFinite(workout.duration) ? formatDurationDisplay(workout.duration) : 'N/A'}</Text>
+              <Text style={styles.gridLabel}>Duration</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.pace !== false && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>🏃</Text>
+              <Text style={styles.gridValue}>
+  {typeof workout.avgPace === 'number' && isFinite(workout.avgPace) 
+    ? formatPaceDisplay(workout.avgPace, settings.displayUnit as DisplayUnit) 
+    : `--:-- /${settings.displayUnit}`}
+</Text>
+              <Text style={styles.gridLabel}>Avg Pace</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.steps !== false && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>👟</Text>
+              <Text style={styles.gridValue}>{workout.steps || '--'}</Text>
+              <Text style={styles.gridLabel}>Steps</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.calories !== false && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>🔥</Text>
+              <Text style={styles.gridValue}>{workout.calories != null && workout.calories > 0 ? workout.calories : '--'}</Text>
+              <Text style={styles.gridLabel}>Calories</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.stride !== false && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>🦿</Text>
+              <Text style={styles.gridValue}>
+                {workout.steps && workout.steps > 0 && workout.distance > 0 
+                  ? `${((workout.distance / workout.steps) * 100).toFixed(0)} cm`
+                  : '--'}
+              </Text>
+              <Text style={styles.gridLabel}>Stride</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.cadence !== false && workout.steps && workout.duration > 0 && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>👣</Text>
+              <Text style={styles.gridValue}>
+                {Math.round((workout.steps / (workout.duration / 60)) * 10) / 10} spm
+              </Text>
+              <Text style={styles.gridLabel}>Cadence</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.speed !== false && workout.distance > 0 && workout.duration > 0 && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>🏃‍♂️</Text>
+              <Text style={styles.gridValue}>
+                {((workout.distance / (workout.duration / 3600)) * (settings.displayUnit === 'mi' ? 0.621371 : 1)).toFixed(1)} {settings.displayUnit === 'mi' ? 'mph' : 'km/h'}
+              </Text>
+              <Text style={styles.gridLabel}>Avg Speed</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.elevationGain !== false && workout.totalElevationGain !== undefined && workout.totalElevationGain > 0 && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>⛰️</Text>
+              <Text style={styles.gridValue}>{(workout.totalElevationGain || 0).toFixed(0)} m</Text>
+              <Text style={styles.gridLabel}>Elevation Gain</Text>
+            </View>
+          )}
+          
+          {settings.workoutCardSettings?.caloriesPerKm !== false && workout.calories && workout.distance > 0 && (
+            <View style={styles.gridItem}>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>🔥</Text>
+              <Text style={styles.gridValue}>
+                {(workout.calories / (workout.distance / (settings.displayUnit === 'mi' ? 1.60934 : 1))).toFixed(0)} cal/{settings.displayUnit}
+              </Text>
+              <Text style={styles.gridLabel}>Cal/{settings.displayUnit}</Text>
+            </View>
+          )}
         </View>
       </View>
 
@@ -106,11 +189,6 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) =
           <ChevronsDown size={18} color="#fb7185" style={styles.icon} />
           <Text style={styles.detailLabel}>Elevation Loss:</Text>
           <Text style={styles.detailValue}>{workout.totalElevationLoss != null ? `${workout.totalElevationLoss.toFixed(0)} m` : 'N/A'}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Flame size={18} color="#f59e0b" style={styles.icon} />
-          <Text style={styles.detailLabel}>Calories:</Text>
-          <Text style={styles.detailValue}>{workout.calories != null && workout.calories > 0 ? `${workout.calories} kcal` : 'N/A'}</Text>
         </View>
         <View style={styles.detailRow}>
           <Heart size={18} color="#ef4444" style={styles.icon} />
@@ -148,13 +226,13 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) =
             <View key={index} style={styles.splitItem}>
               <Text style={[styles.splitDetail, styles.splitNumber]}>{index + 1}</Text>
               <Text style={[styles.splitDetail, styles.splitDistance]}>
-                {formatDistanceDisplay(split.distance, settings.displayUnit)}
+                {formatDistanceDisplay(split.distance, settings.displayUnit as DisplayUnit)}
               </Text>
               <Text style={[styles.splitDetail, styles.splitDuration]}>
                 {formatDurationDisplay(split.duration)}
               </Text>
               <Text style={[styles.splitDetail, styles.splitPace]}>
-                {formatPaceDisplay(split.pace, settings.displayUnit)}
+                {formatPaceDisplay(split.pace, settings.displayUnit as DisplayUnit)}
               </Text>
             </View>
           ))}

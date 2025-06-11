@@ -21,6 +21,7 @@ export interface WorkoutEntry {
   totalElevationGain?: number; // in meters
   totalElevationLoss?: number; // in meters
   splits?: Split[]; // Array of split data
+  steps?: number; // Total steps recorded during the workout
 }
 
 export const WORKOUT_HISTORY_KEY = '@workoutHistory';
