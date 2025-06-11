@@ -20,8 +20,11 @@ export interface RaceGoal {
 export interface UserSettings {
   // User information
   userId?: string;
+  firstName?: string;
+  lastName?: string;
   displayName?: string;
   email?: string;
+  birthDate?: string; // ISO string format: YYYY-MM-DD
   birthYear?: number;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
   

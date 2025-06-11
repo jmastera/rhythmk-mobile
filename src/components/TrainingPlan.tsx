@@ -61,6 +61,20 @@ const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onR
             { week: 8, sessions: ['25 min easy run', '20 min shakeout', 'RACE DAY! 10K'] },
           ],
         },
+        'hyrox': {
+          duration: '8 weeks',
+          runsPerWeek: 3,
+          weeks: [
+            { week: 1, sessions: ['2km easy run', '4x400m intervals, 2 min rest', '3km easy run'] },
+            { week: 2, sessions: ['2.5km easy run', '5x400m intervals, 90s rest', '3.5km easy run'] },
+            { week: 3, sessions: ['3km easy run', '4x600m intervals, 2 min rest', '4km easy run'] },
+            { week: 4, sessions: ['3km easy run', '20 min tempo run', '4km easy run'] },
+            { week: 5, sessions: ['3.5km easy run', '6x400m intervals, 75s rest', '4.5km easy run'] },
+            { week: 6, sessions: ['4km easy run', '5x600m intervals, 90s rest', '5km easy run'] },
+            { week: 7, sessions: ['4km easy run', '25 min tempo run', '5km easy run'] },
+            { week: 8, sessions: ['3km easy run', '3x400m easy pace', 'RACE DAY!'] },
+          ],
+        },
       },
       intermediate: {
         '5k': {
@@ -82,10 +96,46 @@ const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onR
             { week: 1, sessions: ['45 min easy', '35 min tempo', '60 min long', '30 min recovery'] },
             { week: 2, sessions: ['50 min easy', '40 min intervals', '75 min long', '35 min recovery'] },
             { week: 3, sessions: ['55 min easy', '45 min tempo', '90 min long', '40 min recovery'] },
+            // Add more weeks for a full plan...
+          ],
+        },
+        'hyrox': {
+          duration: '10 weeks',
+          runsPerWeek: 4,
+          weeks: [
+            { week: 1, sessions: ['4km easy', '6x500m intervals, 90s rest', '5km easy', '25 min recovery'] },
+            { week: 2, sessions: ['5km easy', '4x800m intervals, 2 min rest', '6km easy', '30 min recovery'] },
+            { week: 3, sessions: ['5km easy', '25 min tempo run', '7km easy', '30 min recovery'] },
+            { week: 4, sessions: ['6km easy', '5x800m intervals, 90s rest', '8km long run', '35 min recovery'] },
+            { week: 5, sessions: ['6km easy', '30 min tempo run', '8km easy', '35 min recovery'] },
+            { week: 6, sessions: ['7km easy', '6x800m intervals, 75s rest', '10km long run', '40 min recovery'] },
+            { week: 7, sessions: ['7km easy', '35 min tempo run', '8km easy', '40 min recovery'] },
+            { week: 8, sessions: ['8km easy', '4x1km intervals, 2 min rest', '10km long run', '45 min recovery'] },
+            { week: 9, sessions: ['6km easy', '30 min tempo', '8km easy', '30 min recovery'] },
+            { week: 10, sessions: ['4km easy', '4x400m easy pace', 'Rest', 'RACE DAY!'] },
           ],
         },
       },
-      // Add 'advanced' plans if available
+      advanced: {
+        'hyrox': {
+          duration: '12 weeks',
+          runsPerWeek: 5,
+          weeks: [
+            { week: 1, sessions: ['6km easy', '8x500m intervals, 75s rest', '7km easy', '3km recovery', '10km long run'] },
+            { week: 2, sessions: ['7km easy', '6x800m intervals, 90s rest', '8km tempo', '4km recovery', '12km long run'] },
+            { week: 3, sessions: ['7km easy', '5x1km intervals, 2 min rest', '8km easy', '4km recovery', '13km long run'] },
+            { week: 4, sessions: ['8km easy', '35 min tempo run', '9km easy', '5km recovery', '14km long run'] },
+            { week: 5, sessions: ['8km easy', '7x800m intervals, 75s rest', '10km tempo', '5km recovery', '15km long run'] },
+            { week: 6, sessions: ['9km easy', '6x1km intervals, 90s rest', '10km easy', '6km recovery', '16km long run'] },
+            { week: 7, sessions: ['9km easy', '40 min tempo run', '10km easy', '6km recovery', '17km long run'] },
+            { week: 8, sessions: ['10km easy', '7x1km intervals, 75s rest', '12km tempo', '7km recovery', '18km long run'] },
+            { week: 9, sessions: ['10km easy', '45 min tempo run', '12km easy', '7km recovery', '19km long run'] },
+            { week: 10, sessions: ['10km easy', '5x1km intervals, 60s rest', '10km easy', '5km recovery', '16km long run'] },
+            { week: 11, sessions: ['8km easy', '30 min tempo', '8km easy', '4km recovery', '12km long run'] },
+            { week: 12, sessions: ['5km easy', '4x400m easy pace', 'Rest', 'Rest', 'RACE DAY!'] },
+          ],
+        },
+      },
     };
     // Fallback to beginner 5k if specific plan not found
     return plans[fitnessLevel]?.[raceType] || plans.beginner?.['5k'] || { duration: 'N/A', runsPerWeek: 0, weeks: [] };
@@ -97,6 +147,7 @@ const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onR
     '5k': '5K',
     '10k': '10K',
     'half-marathon': 'Half Marathon',
+    'hyrox': 'Hyrox Run Training',
     'marathon': 'Marathon',
   };
 

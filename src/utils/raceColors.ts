@@ -4,6 +4,7 @@ export const raceColors = {
   '10k': '#3b82f6', // Blue
   'half-marathon': '#8b5cf6', // Purple
   'marathon': '#ef4444', // Red
+  'hyrox': '#facc15', // Gold/Yellow
 };
 
 // Default color (app accent) if race type not found

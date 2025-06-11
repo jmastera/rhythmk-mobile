@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Target, MapPin, Mountain, Trophy, ArrowRight } from 'lucide-react-native';
+import { Target, MapPin, Mountain, Trophy, ArrowRight, Zap } from 'lucide-react-native';
 import { raceColors } from '../utils/raceColors';
 
 interface RaceTypeSelectorProps {
@@ -48,6 +48,16 @@ const races = [
     difficulty: 'Elite Challenge',
     description: 'Ultimate running achievement',
     color: raceColors['marathon'],
+  },
+  {
+    id: 'hyrox',
+    title: 'Hyrox Run Training',
+    distance: '8 x 1km Runs',
+    icon: Zap,
+    duration: '8-12 weeks',
+    difficulty: 'Advanced',
+    description: 'Train for the demanding running portion of a Hyrox race.',
+    color: raceColors['hyrox'],
   },
 ];
 

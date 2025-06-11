@@ -32,6 +32,7 @@ const RACE_DETAILS_MAP: { [key: string]: { name: string; distanceMeters: number 
   '10k': { name: '10K Run', distanceMeters: 10000 },
   'half-marathon': { name: 'Half Marathon', distanceMeters: 21097 },
   'marathon': { name: 'Marathon', distanceMeters: 42195 },
+  'hyrox': { name: 'Hyrox Run Training', distanceMeters: 8000 }, // 8 x 1km
 };
 
 const RaceGoalScreen = () => {

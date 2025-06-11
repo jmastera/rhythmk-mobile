@@ -147,6 +147,12 @@ export const styles = StyleSheet.create({
     fontSize: 16,
     color: 'white',
   },
+  smallLabel: {
+    fontSize: 13,
+    color: '#b0b0b0', // Lighter grey for sub-labels
+    marginBottom: 4,
+    textAlign: 'center', // Center align for feet/inches labels
+  },
   buttonGroup: {
     flexDirection: 'row',
   },
@@ -170,27 +176,43 @@ export const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   numericInput: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    backgroundColor: 'rgba(80, 80, 80, 0.5)', // More opaque dark grey background
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(150, 150, 150, 0.7)', // More visible border
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    color: '#FFF',
-    minWidth: 80,
+    paddingVertical: 10, // Increased vertical padding
+    color: '#FFFFFF', // Ensure text is white
+    minWidth: 70, // Adjusted minWidth
+    minHeight: 44, // Standard tap height
     textAlign: 'center',
     fontSize: 16,
   },
   settingRowDoubleInput: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingHorizontal: 16,
+    justifyContent: 'space-around', // Use space-around for better spacing of ft/in inputs
+    alignItems: 'flex-start', // Align items to the start of the cross axis
+    flex: 1, // Allow this container to take available space in the row
+    // marginBottom: 16, // Removed, as settingRow will handle vertical spacing
+    // paddingHorizontal: 16, // Removed, let child doubleInputContainers manage their space
   },
   doubleInputContainer: {
-    width: '48%',
+    width: '45%', // Adjusted width to allow for space-around
+    alignItems: 'stretch', // Stretch label and input horizontally if needed
   },
   smallInput: {
     width: '100%',
+  },
+  textInput: {
+    backgroundColor: 'rgba(80, 80, 80, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(150, 150, 150, 0.7)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#FFFFFF',
+    minHeight: 44,
+    fontSize: 16,
+    flex: 1, // Take up available space in the row
   },
 });

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Platform, ScrollView, KeyboardAvoidingView, Modal, FlatList, View, Text, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Picker } from '@react-native-picker/picker';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { addActivity, updateActivity } from '../utils/Database';
 import { WorkoutEntry, WORKOUT_HISTORY_KEY } from '../types/history';
@@ -254,7 +253,7 @@ const LogActivityScreen = () => {
           <Text style={styles.headerSubtitle}>
             {isRunNotesEdit ? 'Update notes for this run' : 
              isEditing ? 'Update your existing activity details' : 
-             'Log your non-running workouts'}
+             'Log your non-plan workouts'}
           </Text>
         </View>
 
@@ -451,6 +450,7 @@ const styles = StyleSheet.create({
   // Header styles
   headerTextContainer: {
     marginBottom: 24,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 28,

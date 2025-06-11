@@ -22,7 +22,8 @@ const SettingsScreen = () => {
   
   // State to track expanded/collapsed sections
   const [expandedSections, setExpandedSections] = useState({
-    userProfile: true,     // User Profile section - expanded by default
+    personalInfo: false,   // Personal Info section - collapsed by default
+    userAttributes: true,  // User Attributes section - expanded by default
     audioCues: false,      // Audio Cues section - collapsed by default
     displayPrefs: false,   // Display Preferences - collapsed by default
     workoutCards: false,   // Workout Cards section - collapsed by default
@@ -39,7 +40,7 @@ const SettingsScreen = () => {
   };
   
   // Toggle expanded/collapsed state for a section
-  const toggleSection = (section: 'audioCues' | 'userProfile' | 'displayPrefs' | 'workoutCards' | 'debugSettings') => {
+  const toggleSection = (section: 'personalInfo' | 'audioCues' | 'userAttributes' | 'displayPrefs' | 'workoutCards' | 'debugSettings') => {
     setExpandedSections(prev => ({
       ...prev,
       [section]: !prev[section]
@@ -81,6 +82,72 @@ const SettingsScreen = () => {
         <View style={styles.headerContainer}>
           <Text style={styles.headerTitle}>Settings</Text>
         </View>
+
+        {/* User Info and Logout */}
+        <View style={{ paddingVertical: 10, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: '#333', marginBottom: 10 }}>
+          {user?.email && (
+            <Text style={{ color: '#ccc', fontSize: 14, marginBottom: 12 }}>Logged in as: {user.email}</Text>
+          )}
+          <TouchableOpacity onPress={handleLogout} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 5, backgroundColor: 'rgba(255, 165, 0, 0.1)', alignSelf: 'flex-start' }}>
+            <LogOut size={18} color="#FFA500" style={{ marginRight: 8 }} />
+            <Text style={{ color: '#FFA500', fontSize: 14, fontWeight: '500' }}>Logout</Text>
+          </TouchableOpacity>
+        </View>
+
+      {/* Personal Information Section */}
+      <View style={styles.sectionContainer}>
+        <TouchableOpacity
+          style={styles.sectionHeader}
+          onPress={() => toggleSection('personalInfo')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+          {expandedSections.personalInfo ? 
+            <ChevronUp size={20} color="#FFF" /> : 
+            <ChevronDown size={20} color="#FFF" />}
+        </TouchableOpacity>
+
+        {expandedSections.personalInfo && (
+          <View style={styles.sectionContent}>
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>First Name</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter first name"
+                value={settings.firstName || ''}
+                onChangeText={(text) => updateSettings({ firstName: text })}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Last Name</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter last name"
+                value={settings.lastName || ''}
+                onChangeText={(text) => updateSettings({ lastName: text })}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Display Name</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Enter display name"
+                value={settings.displayName || ''}
+                onChangeText={(text) => updateSettings({ displayName: text })}
+              />
+            </View>
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Date of Birth</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="YYYY-MM-DD"
+                value={settings.birthDate || ''}
+                onChangeText={(text) => updateSettings({ birthDate: text })}
+              />
+            </View>
+          </View>
+        )}
+      </View>
 
       {/* Audio Cues Section */}
       <View style={styles.sectionContainer}>
@@ -179,81 +246,44 @@ const SettingsScreen = () => {
       <View style={styles.sectionContainer}>
         <TouchableOpacity 
           style={styles.sectionHeader}
-          onPress={() => toggleSection('userProfile')}
+          onPress={() => toggleSection('userAttributes')}
           activeOpacity={0.7}
         >
-          <Text style={styles.sectionTitle}>User Profile</Text>
-          {expandedSections.userProfile ? 
+          <Text style={styles.sectionTitle}>User Attributes</Text>
+          {expandedSections.userAttributes ? 
             <ChevronUp size={20} color="#FFF" /> : 
             <ChevronDown size={20} color="#FFF" />}
         </TouchableOpacity>
         
-        {expandedSections.userProfile && (
+        {expandedSections.userAttributes && (
           <View style={styles.sectionContent}>
-            <View style={styles.userInfoContainer}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {user?.email?.charAt(0).toUpperCase() || 'U'}
-                </Text>
-              </View>
-              <View>
-                <Text style={styles.userEmail}>{user?.email || 'User'}</Text>
-                <Text style={styles.userStatus}>Active</Text>
-              </View>
-            </View>
-            <TouchableOpacity 
-              style={styles.logoutButton}
-              onPress={handleLogout}
-            >
-              <LogOut size={20} color="#FF3B30" />
-              <Text style={styles.logoutButtonText}>Log Out</Text>
-            </TouchableOpacity>
-
-            {/* Height Section with Unit Toggle */}
+            {/* Height Section */}
             <View style={styles.settingRow}>
               <Text style={styles.settingLabel}>Height</Text>
               <View style={styles.buttonGroup}>
                 <TouchableOpacity
-                  style={[
-                    styles.unitButton,
-                    settings.heightUnit === 'cm' && styles.unitButtonActive,
-                  ]}
+                  style={[styles.unitButton, settings.heightUnit === 'cm' && styles.unitButtonActive]}
                   onPress={() => updateSettings({ heightUnit: 'cm' })}
                 >
-                  <Text
-                    style={[
-                      styles.unitButtonText,
-                      settings.heightUnit === 'cm' && styles.unitButtonTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.unitButtonText, settings.heightUnit === 'cm' && styles.unitButtonTextActive]}>
                     Metric (cm)
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[
-                    styles.unitButton,
-                    settings.heightUnit === 'ft-in' && styles.unitButtonActive,
-                  ]}
+                  style={[styles.unitButton, settings.heightUnit === 'ft-in' && styles.unitButtonActive]}
                   onPress={() => updateSettings({ heightUnit: 'ft-in' })}
                 >
-                  <Text
-                    style={[
-                      styles.unitButtonText,
-                      settings.heightUnit === 'ft-in' && styles.unitButtonTextActive,
-                    ]}
-                  >
+                  <Text style={[styles.unitButtonText, settings.heightUnit === 'ft-in' && styles.unitButtonTextActive]}>
                     Imperial (ft-in)
                   </Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
-        )}
-            
-            {/* Height Input Section */}
+
+            {/* Conditional Height Input */}
             <View style={styles.settingRow}>
               {settings.heightUnit === 'cm' ? (
-                <View style={{ flex: 1 }}>
+                <>
                   <Text style={styles.settingLabel}>Height (cm)</Text>
                   <TextInput
                     style={styles.numericInput}
@@ -270,12 +300,13 @@ const SettingsScreen = () => {
                     }}
                     onBlur={() => Keyboard.dismiss()}
                   />
-                </View>
+                </>
               ) : (
-                <View style={{ flex: 1 }}>
+                <>
+                  <Text style={styles.settingLabel}>Height (ft-in)</Text>
                   <View style={styles.settingRowDoubleInput}>
                     <View style={styles.doubleInputContainer}>
-                      <Text style={styles.settingLabel}>Feet</Text>
+                      <Text style={styles.smallLabel}>Feet</Text>
                       <TextInput
                         style={[styles.numericInput, styles.smallInput]}
                         keyboardType="numeric"
@@ -284,13 +315,9 @@ const SettingsScreen = () => {
                         onChangeText={(text) => {
                           const feet = parseInt(text, 10);
                           if (!isNaN(feet) && feet >= 0) {
-                            // Convert to cm and update both values
                             const inches = settings.userHeightInches || 0;
                             const totalCm = Math.round((feet * 30.48) + (inches * 2.54));
-                            updateSettings({ 
-                              userHeightFeet: feet, 
-                              userHeight: totalCm 
-                            });
+                            updateSettings({ userHeightFeet: feet, userHeight: totalCm });
                           } else if (text === '') {
                             updateSettings({ userHeightFeet: undefined });
                           }
@@ -299,21 +326,18 @@ const SettingsScreen = () => {
                       />
                     </View>
                     <View style={styles.doubleInputContainer}>
-                      <Text style={styles.settingLabel}>Inches</Text>
+                      <Text style={styles.smallLabel}>Inches</Text>
                       <TextInput
                         style={[styles.numericInput, styles.smallInput]}
                         keyboardType="numeric"
                         placeholder="10"
+                        defaultValue={settings.userHeightInches ? settings.userHeightInches.toString() : ''}
                         onChangeText={(text) => {
                           const inches = parseInt(text, 10);
                           if (!isNaN(inches) && inches >= 0 && inches < 12) {
-                            // Convert to cm and update both values
                             const feet = settings.userHeightFeet || 0;
                             const totalCm = Math.round((feet * 30.48) + (inches * 2.54));
-                            updateSettings({ 
-                              userHeightInches: inches, 
-                              userHeight: totalCm 
-                            });
+                            updateSettings({ userHeightInches: inches, userHeight: totalCm });
                           } else if (text === '') {
                             updateSettings({ userHeightInches: undefined });
                           }
@@ -322,79 +346,64 @@ const SettingsScreen = () => {
                       />
                     </View>
                   </View>
-                </View>
+                </>
               )}
+            </View>
 
-              {/* Weight Section with Unit Toggle */}
-              <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Weight</Text>
-                <View style={styles.buttonGroup}>
-                  <TouchableOpacity
-                    style={[
-                      styles.unitButton,
-                      settings.weightUnit === 'kg' && styles.unitButtonActive,
-                    ]}
-                    onPress={() => updateSettings({ weightUnit: 'kg' })}
-                  >
-                    <Text
-                      style={[
-                        styles.unitButtonText,
-                        settings.weightUnit === 'kg' && styles.unitButtonTextActive,
-                      ]}
-                    >
-                      Metric (kg)
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.unitButton,
-                      settings.weightUnit === 'lb' && styles.unitButtonActive,
-                    ]}
-                    onPress={() => updateSettings({ weightUnit: 'lb' })}
-                  >
-                    <Text
-                      style={[
-                        styles.unitButtonText,
-                        settings.weightUnit === 'lb' && styles.unitButtonTextActive,
-                      ]}
-                    >
-                      Imperial (lb)
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>
-                  {settings.weightUnit === 'kg' ? 'Weight (kg)' : 'Weight (lb)'}
-                </Text>
-                <TextInput
-                  style={styles.numericInput}
-                  keyboardType="numeric"
-                  placeholder={settings.weightUnit === 'kg' ? '70' : '154'}
-                  value={settings.userWeight 
-                    ? settings.weightUnit === 'kg'
-                      ? settings.userWeight.toString()
-                      : Math.round(settings.userWeight * 2.20462).toString()
-                    : ''}
-                  onChangeText={(text) => {
-                    const weightValue = parseFloat(text);
-                    if (!isNaN(weightValue) && weightValue > 0) {
-                      // Always store in kg internally
-                      const weightInKg = settings.weightUnit === 'kg' 
-                        ? weightValue 
-                        : Math.round(weightValue / 2.20462);
-                      updateSettings({ userWeight: weightInKg });
-                    } else if (text === '') {
-                      updateSettings({ userWeight: undefined });
-                    }
-                  }}
-                  onBlur={() => Keyboard.dismiss()}
-                />
+            {/* Weight Section */}
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Weight</Text>
+              <View style={styles.buttonGroup}>
+                <TouchableOpacity
+                  style={[styles.unitButton, settings.weightUnit === 'kg' && styles.unitButtonActive]}
+                  onPress={() => updateSettings({ weightUnit: 'kg' })}
+                >
+                  <Text style={[styles.unitButtonText, settings.weightUnit === 'kg' && styles.unitButtonTextActive]}>
+                    Metric (kg)
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.unitButton, settings.weightUnit === 'lb' && styles.unitButtonActive]}
+                  onPress={() => updateSettings({ weightUnit: 'lb' })}
+                >
+                  <Text style={[styles.unitButtonText, settings.weightUnit === 'lb' && styles.unitButtonTextActive]}>
+                    Imperial (lb)
+                  </Text>
+                </TouchableOpacity>
               </View>
             </View>
-        </View>
-
+            
+            {/* Weight Input */}
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>
+                {settings.weightUnit === 'kg' ? 'Weight (kg)' : 'Weight (lb)'}
+              </Text>
+              <TextInput
+                style={styles.numericInput}
+                keyboardType="numeric"
+                placeholder={settings.weightUnit === 'kg' ? '70' : '154'}
+                value={settings.userWeight 
+                  ? settings.weightUnit === 'kg'
+                    ? settings.userWeight.toString()
+                    : Math.round(settings.userWeight * 2.20462).toString()
+                  : ''}
+                onChangeText={(text) => {
+                  const weightValue = parseFloat(text);
+                  if (!isNaN(weightValue) && weightValue > 0) {
+                    const weightInKg = settings.weightUnit === 'kg' 
+                      ? weightValue 
+                      : Math.round(weightValue / 2.20462);
+                    updateSettings({ userWeight: weightInKg });
+                  } else if (text === '') {
+                    updateSettings({ userWeight: undefined });
+                  }
+                }}
+                onBlur={() => Keyboard.dismiss()}
+              />
+            </View>
+          </View>
+        )}
+      </View>
 
 
       {/* Debug Settings Section */}
@@ -493,8 +502,6 @@ const SettingsScreen = () => {
                 <Text style={styles.debugInfoText}>Version: 1.0.0</Text>
                 <Text style={styles.debugInfoText}>Build: 1</Text>
                 <Text style={styles.debugInfoText}>Environment: {__DEV__ ? 'Development' : 'Production'}</Text>
-                <Text style={[styles.debugInfoText, { marginTop: 10 }]}>User ID: {user?.id || 'N/A'}</Text>
-                <Text style={styles.debugInfoText}>Email: {user?.email || 'N/A'}</Text>
               </View>
             )}
           </View>
