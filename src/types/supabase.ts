@@ -21,6 +21,7 @@ export type Database = {
           duration: number | null
           endTime: string | null
           id: string
+          intensity: string | null
           notes: string | null
           planId: string | null
           planName: string | null
@@ -29,7 +30,7 @@ export type Database = {
           totalElevationGain: number | null
           totalElevationLoss: number | null
           trackingMode: string | null
-          type: string[] | null
+          type: string | null
           user_id: string | null
         }
         Insert: {
@@ -43,6 +44,7 @@ export type Database = {
           duration?: number | null
           endTime?: string | null
           id?: string
+          intensity?: string | null
           notes?: string | null
           planId?: string | null
           planName?: string | null
@@ -51,7 +53,7 @@ export type Database = {
           totalElevationGain?: number | null
           totalElevationLoss?: number | null
           trackingMode?: string | null
-          type?: string[] | null
+          type?: string | null
           user_id?: string | null
         }
         Update: {
@@ -65,6 +67,7 @@ export type Database = {
           duration?: number | null
           endTime?: string | null
           id?: string
+          intensity?: string | null
           notes?: string | null
           planId?: string | null
           planName?: string | null
@@ -73,7 +76,7 @@ export type Database = {
           totalElevationGain?: number | null
           totalElevationLoss?: number | null
           trackingMode?: string | null
-          type?: string[] | null
+          type?: string | null
           user_id?: string | null
         }
         Relationships: []

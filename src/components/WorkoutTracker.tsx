@@ -572,23 +572,26 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
       console.log('WorkoutTracker: Workout saved to AsyncStorage.');
 
       if (user?.id) {
+        // Map to Supabase schema - ensure all numeric fields are properly formatted
         const supabasePayload: TablesInsert<'workouts'> = {
           id: workoutId,
           user_id: user.id,
           date: workoutData.date,
-          // workoutData.startTime is effectively captured by created_at
-          endTime: workoutData.endTime,     // Use camelCase 'endTime' as per Supabase types
-          duration: Math.round(workoutData.duration), // Round for bigint
-          distance: workoutData.distance,
-          avgPace: workoutData.avgPace,
-          calories: workoutData.calories ? Math.round(workoutData.calories) : undefined, // Round for bigint
-          coordinates: workoutData.coordinates as any, // Cast to Json
+          endTime: workoutData.endTime,
+          duration: Math.round(workoutData.duration || 0),
+          distance: Math.round((workoutData.distance || 0) * 1000), // Convert km to meters and round
+          avgPace: workoutData.avgPace ? parseFloat(workoutData.avgPace.toFixed(2)) : null,
+          calories: Math.round(workoutData.calories || 0),
+          coordinates: workoutData.coordinates as any,
           notes: workoutData.notes,
-          totalElevationGain: workoutData.totalElevationGain,
-          type: workoutData.type ? [workoutData.type] : undefined,
+          totalElevationGain: workoutData.totalElevationGain ? Math.round(workoutData.totalElevationGain) : null,
+          type: workoutData.type,
           planId: workoutData.planId,
-          created_at: workoutData.created_at, // This captures the start/creation time
-          // avgHeartRate, planName, splits, steps, totalElevationLoss, trackingMode are optional and not in workoutData
+          created_at: workoutData.created_at,
+          steps: workoutData.steps ? Math.round(workoutData.steps) : null,
+          trackingMode: workoutData.trackingMode,
+          avgHeartRate: workoutData.avgHeartRate ? Math.round(workoutData.avgHeartRate) : null,
+          totalElevationLoss: workoutData.totalElevationLoss ? Math.round(workoutData.totalElevationLoss) : null
         };
 
         console.log('WorkoutTracker: Preparing to save to Supabase with payload:', supabasePayload);
@@ -605,7 +608,29 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
       }
 
       // Moved success alert and callback here, after all save attempts
-      Alert.alert('Workout Saved!', `Distance: ${formatDistanceDisplay(distance, settings.displayUnit)}`);
+      // Format the workout summary
+      const formattedDistance = formatDistanceDisplay(distance * 1000, settings.displayUnit);
+      const formattedDuration = formatDurationDisplay(duration);
+      const formattedPace = avgPace > 0 ? formatPaceDisplay(avgPace, settings.displayUnit) : '--:--';
+      const formattedCalories = Math.round(estimatedCalories);
+
+      Alert.alert(
+        'Workout Complete! ✅',
+        `\nDistance: ${formattedDistance}\n` +
+        `Duration: ${formattedDuration}\n` +
+        `Avg Pace: ${formattedPace}/km\n` +
+        `Calories: ${formattedCalories} kcal`,
+        [
+          {
+            text: 'OK',
+            style: 'default',
+          },
+        ],
+        {
+          cancelable: true,
+          userInterfaceStyle: 'dark',
+        }
+      );
       if (onWorkoutComplete) onWorkoutComplete(workoutData);
 
     } catch (error) {
@@ -675,7 +700,7 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
         </View>
       </View>
 
-      {settings.showMap && routeCoordinates.length > 1 && (
+      {settings.showMap && (routeCoordinates.length > 0 || lastPosition) && (
         <WorkoutMapDisplay 
           settings={settings}
           routeCoordinates={routeCoordinates}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Platform, ScrollView, KeyboardAvoidingView, Modal, FlatList, View, Text, TextInput, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { addActivity, updateActivity } from '../utils/Database';
+import { addActivity, updateActivity, ActivityData } from '../lib/supabase';
 import { WorkoutEntry, WORKOUT_HISTORY_KEY } from '../types/history';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { HeaderSafeArea } from '../components/HeaderSafeArea';
@@ -129,7 +129,23 @@ const LogActivityScreen = () => {
   const [caloriesBurned, setCaloriesBurned] = useState(
     params?.caloriesBurned ? String(params.caloriesBurned) : ''
   );
+  const [distance, setDistance] = useState(''); // Distance in kilometers or miles (user's preference)
+  const [distanceUnit, setDistanceUnit] = useState('km'); // 'km' or 'mi'
   
+  // Activity types that should show the distance input
+  const ACTIVITIES_WITH_DISTANCE = [
+    'Walking',
+    'Running',
+    'Cycling',
+    'Swimming',
+    'Hiking',
+    // Add other activity types that should have distance
+  ];
+
+  // Check if the current activity type should show distance field
+  const shouldShowDistance = ACTIVITIES_WITH_DISTANCE.includes(activityType) || 
+                          (activityType === 'Other' && ACTIVITIES_WITH_DISTANCE.includes(customActivityName));
+
   // Date picker state
   const [showDatePicker, setShowDatePicker] = useState(false);
   
@@ -140,62 +156,90 @@ const LogActivityScreen = () => {
   const intensityLevels = ['Low', 'Medium', 'High', 'Very High'];
 
   const handleSaveActivity = async () => {
-    // Special case for editing run notes
+    // Special case for editing run notes first
     if (isRunNotesEdit && params.workoutId) {
-      await updateRunNotes(params.workoutId as string, notes);
+      try {
+        await updateRunNotes(params.workoutId as string, notes);
+        // Alert and navigation are handled within updateRunNotes or can be added here if needed
+      } catch (error) {
+        console.error('Error in handleSaveActivity while updating run notes:', error);
+        Alert.alert('Error', 'Failed to save run notes.');
+      }
       return;
     }
-    
+
     // Regular activity validation and saving
-    // Validate required fields
-    if (!activityType || !date || !durationMinutes) {
-      Alert.alert('Error', 'Activity Type, Date, and Duration are required.');
+    if (!activityType) {
+      Alert.alert('Error', 'Please select an activity type.');
       return;
     }
-    
-    // Validate custom activity name for 'Other' type
-    if (activityType === 'Other' && !customActivityName.trim()) {
-      Alert.alert('Error', 'Please enter a custom activity name');
+    if (activityType === 'Other' && (!customActivityName || customActivityName.trim() === '')) {
+      Alert.alert('Error', 'Please enter a name for your custom activity.');
       return;
     }
-    
+    if (!durationMinutes || parseInt(durationMinutes, 10) <= 0) {
+      Alert.alert('Error', 'Please enter a valid duration (must be greater than 0).');
+      return;
+    }
+
+    // Validate distance if it's a distance-based activity
+    if (shouldShowDistance && distance && isNaN(parseFloat(distance))) {
+      Alert.alert('Error', 'Please enter a valid distance');
+      return;
+    }
+
     // Prepare data for saving
-    const durationInSeconds = Number(durationMinutes) * 60;
-    let result;
-    
-    // Prepare activity data
-    const activityData: any = {
-      activityType: activityType === 'Other' ? 'Other' : activityType,
-      customActivityName: activityType === 'Other' ? customActivityName : null,
+    const finalActivityType = activityType === 'Other' ? (customActivityName.trim() || 'Other') : activityType;
+    const durationInSeconds = parseInt(durationMinutes, 10) * 60;
+    const finalCalories = caloriesBurned ? parseInt(caloriesBurned, 10) : null;
+
+    // Convert distance to meters if provided (storing in meters for consistency with other activities)
+    const distanceInMeters = shouldShowDistance && distance 
+      ? distanceUnit === 'km' ? parseFloat(distance) * 1000 : parseFloat(distance) * 1609.34
+      : undefined; // Use undefined instead of null for consistency with ActivityData type
+
+    // Create base payload without distance
+    const activityPayload: ActivityData = {
+      type: finalActivityType,
+      // customActivityName is part of 'type' if 'Other', and handled in supabase.ts for notes
+      customActivityName: activityType === 'Other' ? customActivityName.trim() : null,
       date: date.toISOString(),
       duration: durationInSeconds,
-      intensity: selectedIntensity,
-      notes,
+      intensity: selectedIntensity || null,
+      notes: notes || null,
+      calories: finalCalories,
     };
-    
-    // Add calories if provided
-    if (caloriesBurned && !isNaN(Number(caloriesBurned))) {
-      activityData.caloriesBurned = Number(caloriesBurned);
+
+    // Add distance only if it's a distance-based activity and a value was provided
+    if (shouldShowDistance && distance && distanceInMeters !== undefined) {
+      (activityPayload as any).distance = Math.round(distanceInMeters);
     }
-    
-    if (isEditing && activityId) {
-      // Update existing activity
-      result = await updateActivity(activityId, activityData);
-      if (result.success) {
-        Alert.alert('Success', 'Activity updated successfully!');
-        navigation.goBack();
+
+    try {
+      if (isEditing && typeof activityId === 'number') {
+        // Update existing activity
+        const updatedActivity = await updateActivity(activityId, activityPayload);
+        if (updatedActivity) {
+          Alert.alert('Success', 'Activity updated successfully!');
+          navigation.goBack();
+        } else {
+          // Error is logged within updateActivity, show generic message
+          Alert.alert('Error', 'Failed to update activity. Please try again.');
+        }
       } else {
-        Alert.alert('Error', `Failed to update activity: ${result.error || 'Unknown error'}`);
+        // Add new activity
+        const newActivity = await addActivity(activityPayload);
+        if (newActivity) {
+          Alert.alert('Success', 'Activity logged successfully!');
+          navigation.goBack();
+        } else {
+          // Error is logged within addActivity, show generic message
+          Alert.alert('Error', 'Failed to log activity. Please try again.');
+        }
       }
-    } else {
-      // Add new activity
-      result = await addActivity(activityData);
-      if (result.success) {
-        Alert.alert('Success', 'Activity logged successfully!');
-        navigation.goBack();
-      } else {
-        Alert.alert('Error', `Failed to log activity: ${result.error || 'Unknown error'}`);
-      }
+    } catch (error) {
+      console.error('Error saving activity:', error);
+      Alert.alert('Error', 'An unexpected error occurred while saving the activity.');
     }
   };
 
@@ -334,6 +378,38 @@ const LogActivityScreen = () => {
                   keyboardType="number-pad"
                 />
               </View>
+
+              {shouldShowDistance && (
+                <>
+                  <Text style={styles.label}>Distance ({distanceUnit})</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TextInput
+                      style={[styles.input, { flex: 1, marginRight: 10 }]}
+                      value={distance}
+                      onChangeText={setDistance}
+                      placeholder="e.g., 5.2"
+                      keyboardType="decimal-pad"
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity 
+                      style={[styles.unitButton, distanceUnit === 'km' && styles.unitButtonActive]}
+                      onPress={() => setDistanceUnit('km')}
+                    >
+                      <Text style={[styles.unitButtonText, distanceUnit === 'km' && styles.unitButtonTextActive]}>
+                        km
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.unitButton, distanceUnit === 'mi' && styles.unitButtonActive, { marginLeft: 5 }]}
+                      onPress={() => setDistanceUnit('mi')}
+                    >
+                      <Text style={[styles.unitButtonText, distanceUnit === 'mi' && styles.unitButtonTextActive]}>
+                        mi
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
 
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Intensity</Text>
@@ -517,9 +593,30 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   saveButtonText: {
-    color: 'white',
-    fontSize: 18,
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
+  },
+  // Styles for distance unit toggle buttons
+  unitButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    backgroundColor: '#f8f9fa',
+  },
+  unitButtonActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  unitButtonText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  unitButtonTextActive: {
+    color: '#fff',
   },
 });
 

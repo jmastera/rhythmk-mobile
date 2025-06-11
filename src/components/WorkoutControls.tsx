@@ -83,11 +83,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 15,
-    paddingHorizontal: 30,
-    borderRadius: 30,
-    marginVertical: 5,
-    minWidth: 200,
+    borderRadius: 25,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
@@ -102,15 +98,25 @@ const styles = StyleSheet.create({
   },
   startButton: {
     backgroundColor: '#4CAF50', // Green
+    width: '100%',
+    maxWidth: 320, // Slightly wider to accommodate longer text
+    paddingVertical: 12,
+    paddingHorizontal: 5,
+    marginHorizontal: 5,
   },
   trackingControlsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'center',
+    alignItems: 'center',
     width: '100%',
+    paddingHorizontal: 10,
   },
   pauseResumeButton: {
     flex: 1,
+    maxWidth: 150,
     marginHorizontal: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 5,
   },
   pauseButton: {
     backgroundColor: '#FFC107', // Amber
@@ -121,7 +127,10 @@ const styles = StyleSheet.create({
   finishButton: {
     backgroundColor: '#F44336', // Red
     flex: 1,
+    maxWidth: 150,
     marginHorizontal: 5,
+    paddingVertical: 12,
+    paddingHorizontal: 5,
   },
   savingButton: {
     backgroundColor: '#757575', // Grey

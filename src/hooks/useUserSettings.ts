@@ -54,6 +54,7 @@ const defaultUserSettings: AppUserSettings = {
   weightUnit: 'kg', // Default to metric units
   renderMapsDebug: true, // Default to true, maps render by default
   showDebugInfo: false, // Default to false, only show debug info when explicitly enabled
+  usePedometer: true, // Enable pedometer/step counting by default
   workoutCardSettings: {
     distance: true,
     duration: true,

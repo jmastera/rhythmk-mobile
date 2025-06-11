@@ -152,7 +152,7 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) =
             <View style={styles.gridItem}>
               <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>🏃‍♂️</Text>
               <Text style={styles.gridValue}>
-                {((workout.distance / (workout.duration / 3600)) * (settings.displayUnit === 'mi' ? 0.621371 : 1)).toFixed(1)} {settings.displayUnit === 'mi' ? 'mph' : 'km/h'}
+                {((workout.distance / (workout.duration / 3600)) * (settings.displayUnit === 'miles' ? 0.621371 : 1)).toFixed(1)} {settings.displayUnit === 'miles' ? 'mph' : 'km/h'}
               </Text>
               <Text style={styles.gridLabel}>Avg Speed</Text>
             </View>
@@ -168,11 +168,11 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) =
           
           {settings.workoutCardSettings?.caloriesPerKm !== false && workout.calories && workout.distance > 0 && (
             <View style={styles.gridItem}>
-              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>🔥</Text>
+              <Text style={[styles.gridValue, {fontSize: 24, marginBottom: 4}]}>📈</Text>
               <Text style={styles.gridValue}>
-                {(workout.calories / (workout.distance / (settings.displayUnit === 'mi' ? 1.60934 : 1))).toFixed(0)} cal/{settings.displayUnit}
+                {(workout.calories / (workout.distance / (settings.displayUnit === 'miles' ? 1.60934 : 1))).toFixed(0)}
               </Text>
-              <Text style={styles.gridLabel}>Cal/{settings.displayUnit}</Text>
+              <Text style={styles.gridLabel}>Cals per {settings.displayUnit}</Text>
             </View>
           )}
         </View>
@@ -362,6 +362,8 @@ const styles = StyleSheet.create({
   gridLabel: {
     fontSize: 12,
     color: '#a1a1aa', // zinc-400
+    textAlign: 'center',
+    width: '100%',
   },
   elevationItem: {
     flexDirection: 'row',
