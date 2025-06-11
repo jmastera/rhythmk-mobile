@@ -24,8 +24,9 @@ import { WorkoutEntry } from '../types/workoutTypes';
 import { formatTime } from '../utils/TimeFormatter';
 import { 
   Activity as ActivityIcon, 
-  Clock, 
   Calendar,
+  ChevronLeft,
+  Clock,
   Footprints,
   MapPin, 
   Flame, 
@@ -285,16 +286,21 @@ const HistoryScreen: React.FC = () => {
           visible={isModalVisible}
           animationType="slide"
           onRequestClose={() => setModalVisible(false)}
+          statusBarTranslucent={true}
         >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity 
-                onPress={() => setModalVisible(false)}
-                style={styles.closeButton}
-              >
-                <X size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
+          <SafeAreaView style={{ flex: 1, backgroundColor: '#1f2937' }}>
+            <View style={styles.modalContainer}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity 
+                  onPress={() => setModalVisible(false)}
+                  style={styles.backButton}
+                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                >
+                  <ChevronLeft size={24} color="#f97316" />
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Workout Details</Text>
+                <View style={styles.headerSpacer} />
+              </View>
             
             {workoutForDetailView && (
               <WorkoutDetail 
@@ -312,7 +318,8 @@ const HistoryScreen: React.FC = () => {
                 }}
               />
             )}
-          </View>
+            </View>
+          </SafeAreaView>
         </Modal>
       </SafeAreaView>
     </ErrorBoundary>
@@ -397,11 +404,28 @@ const styles = StyleSheet.create({
     backgroundColor: '#111827', // Dark background
   },
   modalHeader: {
-    padding: 16,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#374151', // Dark border
+    borderBottomColor: '#374151',
+    backgroundColor: '#1f2937',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#f3f4f6',
+    flex: 1,
+    textAlign: 'center',
+    marginRight: 40, // To balance the flex space
+  },
+  headerSpacer: {
+    width: 40, // Same as back button width for balance
+    height: 40, // Match the height of the back button for vertical alignment
   },
   closeButton: {
     padding: 4,

@@ -8,8 +8,11 @@ import {
   TextInput, 
   ActivityIndicator, 
   Alert, 
-  StyleSheet 
+  StyleSheet,
+  Keyboard,
+  Platform
 } from 'react-native';
+import { supabase } from '../lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { styles } from './SettingsScreen.styles';
 import { HeaderSafeArea } from '../components/HeaderSafeArea';
@@ -18,8 +21,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ChevronDown, ChevronUp, LogOut } from 'lucide-react-native';
 import AudioCueSettings from '../components/AudioCueSettings';
 import WorkoutCardSettings from '../components/WorkoutCardSettings';
-import { Keyboard, Platform } from 'react-native'; // Add Keyboard and Platform import
-import DateTimePicker from '@react-native-community/datetimepicker'; // Add DateTimePicker import
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { AudioCueSettingsData } from '../types/audioTypes';
 import { Database, Json } from '../types/database.types';
 
@@ -69,6 +71,8 @@ const SettingsScreen = () => {
     updateUserProfile
   } = useSettings();
   
+  const { user, signOut } = useAuth();
+  
   // Define a type for the form data
   type FormData = {
     firstName: string;
@@ -86,8 +90,6 @@ const SettingsScreen = () => {
     userWeightLbs: number;
     audioCueDefaults?: AudioCueSettingsData;
   };
-  
-  const { user, signOut } = useAuth();
   
   // Local state for form inputs
   const [formData, setFormData] = useState<FormData>({
@@ -109,7 +111,7 @@ const SettingsScreen = () => {
   // State to track expanded/collapsed sections
   const [expandedSections, setExpandedSections] = useState({
     personalInfo: false,   // Personal Info section - collapsed by default
-    userAttributes: true,  // User Attributes section - expanded by default
+    userAttributes: false, // User Attributes section - collapsed by default
     audioCues: false,      // Audio Cues section - collapsed by default
     displayPrefs: false,   // Display Preferences - collapsed by default
     workoutCards: false,   // Workout Cards section - collapsed by default
@@ -156,32 +158,57 @@ const SettingsScreen = () => {
     }
   }, [profile, preferences]);
   
-  // Load audio cue settings from preferences
+  // Load audio cue settings
   useEffect(() => {
-    if (preferences?.workout_card_settings) {
+    const loadAudioCueSettings = async () => {
+      if (!user?.id) return;
+      
       try {
-        const workoutSettings = preferences.workout_card_settings as unknown as WorkoutCardSettings;
-        if (workoutSettings.audioCueDefaults) {
+        // Try to get existing audio cue settings
+        const { data: audioCueSettings, error } = await supabase
+          .from('audio_cue_settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          throw error;
+        }
+        
+        if (audioCueSettings?.content) {
+          const content = audioCueSettings.content as AudioCueSettingsData;
+          // If volume exists at the root level (0-100 scale), convert it to 0-1 scale
+          if (audioCueSettings.volume !== undefined) {
+            content.volume = audioCueSettings.volume / 100;
+          }
           setFormData(prev => ({
             ...prev,
-            audioCueDefaults: workoutSettings.audioCueDefaults
+            audioCueDefaults: content
+          }));
+        } else {
+          // Set default audio cue settings if none exist
+          setFormData(prev => ({
+            ...prev,
+            audioCueDefaults: defaultAudioCueSettings
           }));
         }
       } catch (error) {
-        console.error('Error parsing workout card settings:', error);
+        console.error('Error loading audio cue settings:', error);
+        // Set default settings on error
+        setFormData(prev => ({
+          ...prev,
+          audioCueDefaults: defaultAudioCueSettings
+        }));
       }
-    } else {
-      // Set default audio cue settings if none exist
-      setFormData(prev => ({
-        ...prev,
-        audioCueDefaults: defaultAudioCueSettings
-      }));
-    }
-  }, [preferences?.workout_card_settings]);
+    };
+    
+    loadAudioCueSettings();
+  }, [user?.id]);
 
   const handleLogout = async () => {
     try {
       await signOut();
+      // Navigation will be handled by the auth state change listener in AuthProvider
     } catch (error) {
       Alert.alert('Error', 'Failed to log out. Please try again.');
       console.error('Logout error:', error);
@@ -548,15 +575,11 @@ const SettingsScreen = () => {
           <Text style={styles.headerTitle}>Settings</Text>
         </View>
 
-        {/* User Info and Logout */}
+        {/* User Info */}
         <View style={{ paddingVertical: 10, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: '#333', marginBottom: 10 }}>
           {user?.email && (
-            <Text style={{ color: '#ccc', fontSize: 14, marginBottom: 12 }}>Logged in as: {user.email}</Text>
+            <Text style={{ color: '#ccc', fontSize: 14 }}>Logged in as: {user.email}</Text>
           )}
-          <TouchableOpacity onPress={handleLogout} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 5, backgroundColor: 'rgba(255, 165, 0, 0.1)', alignSelf: 'flex-start' }}>
-            <LogOut size={18} color="#FFA500" style={{ marginRight: 8 }} />
-            <Text style={{ color: '#FFA500', fontSize: 14, fontWeight: '500' }}>Logout</Text>
-          </TouchableOpacity>
         </View>
 
       {/* Personal Information Section */}
@@ -659,24 +682,67 @@ const SettingsScreen = () => {
         {expandedSections.audioCues && (
           <AudioCueSettings 
             currentSettings={formData.audioCueDefaults || defaultAudioCueSettings}
-            onSave={(newSettings) => {
-              // Store audio cue settings in the workout_card_settings JSON field
-              const currentSettings = (preferences?.workout_card_settings || {}) as WorkoutCardSettings;
-              const updatedSettings: WorkoutCardSettings = {
-                ...currentSettings,
-                audioCueDefaults: newSettings
-              };
-              
-              // Update local state
-              setFormData(prev => ({
-                ...prev,
-                audioCueDefaults: newSettings
-              }));
-              
-              // Update backend
-              updateUserPreferences({
-                workout_card_settings: updatedSettings as unknown as Json
-              } as any);
+            onSave={async (newSettings) => {
+              try {
+                // Update local state first for immediate feedback
+                setFormData(prev => ({
+                  ...prev,
+                  audioCueDefaults: newSettings
+                }));
+                
+                if (!user?.id) {
+                  throw new Error('User not authenticated');
+                }
+                
+                if (!user?.id) {
+                  throw new Error('User not authenticated');
+                }
+                
+                // Check if we have existing audio cue settings
+                const { data: existingSettings, error: fetchError } = await supabase
+                  .from('audio_cue_settings')
+                  .select('id')
+                  .eq('user_id', user.id)
+                  .single();
+                
+                if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
+                  throw fetchError;
+                }
+                
+                if (existingSettings) {
+                  // Update existing settings
+                  const { error: updateError } = await supabase
+                    .from('audio_cue_settings')
+                    .update({
+                      content: newSettings,
+                      updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existingSettings.id);
+                    
+                  if (updateError) throw updateError;
+                } else {
+                  // Create new settings
+                  const { error: createError } = await supabase
+                    .from('audio_cue_settings')
+                    .insert([{
+                      user_id: user.id,
+                      name: 'default',
+                      enabled: true,
+                      volume: Math.round((newSettings.volume || 0.8) * 100), // Convert 0-1 to 0-100 scale
+                      frequency: '1km',
+                      content: newSettings
+                    }])
+                    .single();
+                    
+                  if (createError) throw createError;
+                }
+                
+                // Show success message
+                Alert.alert('Success', 'Audio cue settings saved successfully');
+              } catch (error) {
+                console.error('Error saving audio cue settings:', error);
+                Alert.alert('Error', 'Failed to save audio cue settings');
+              }
             }}
             onClose={() => toggleSection('audioCues')}
           />

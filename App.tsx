@@ -124,8 +124,16 @@ const AppNavigation = () => {
               component={SettingsScreen}
               options={{
                 headerRight: () => (
-                  <TouchableOpacity onPress={signOut} style={{ marginRight: 16 }}>
-                    <Text style={{ color: '#FF3B30', fontSize: 16 }}>Logout</Text>
+                  <TouchableOpacity 
+                    onPress={signOut} 
+                    style={{
+                      marginRight: 16,
+                      padding: 8,
+                      borderRadius: 20,
+                      backgroundColor: 'rgba(255, 59, 48, 0.1)'
+                    }}
+                  >
+                    <Ionicons name="log-out" size={20} color="#FF3B30" />
                   </TouchableOpacity>
                 ),
               }}
