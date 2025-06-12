@@ -655,13 +655,14 @@ const SettingsScreen = () => {
               )}
             </View>
             <View style={{ padding: 16, alignItems: 'center' }}>
-  <TouchableOpacity
-    style={[styles.button, { backgroundColor: '#007AFF', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8 }]}
-    onPress={handleSavePersonalInfo}
-  >
-    <Text style={[styles.buttonText, { fontSize: 16 }]}>Save Personal Information</Text>
-  </TouchableOpacity>
-</View>
+              <TouchableOpacity
+                style={[styles.button, { backgroundColor: '#007AFF' }]}
+                onPress={handleSavePersonalInfo}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.buttonText}>Save Personal Information</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
@@ -680,72 +681,70 @@ const SettingsScreen = () => {
         </TouchableOpacity>
         
         {expandedSections.audioCues && (
-          <AudioCueSettings 
-            currentSettings={formData.audioCueDefaults || defaultAudioCueSettings}
-            onSave={async (newSettings) => {
-              try {
-                // Update local state first for immediate feedback
-                setFormData(prev => ({
-                  ...prev,
-                  audioCueDefaults: newSettings
-                }));
-                
-                if (!user?.id) {
-                  throw new Error('User not authenticated');
-                }
-                
-                if (!user?.id) {
-                  throw new Error('User not authenticated');
-                }
-                
-                // Check if we have existing audio cue settings
-                const { data: existingSettings, error: fetchError } = await supabase
-                  .from('audio_cue_settings')
-                  .select('id')
-                  .eq('user_id', user.id)
-                  .single();
-                
-                if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
-                  throw fetchError;
-                }
-                
-                if (existingSettings) {
-                  // Update existing settings
-                  const { error: updateError } = await supabase
+          <View style={{ marginTop: 8 }}>
+            <AudioCueSettings 
+              currentSettings={formData.audioCueDefaults || defaultAudioCueSettings}
+              onSave={async (newSettings: AudioCueSettingsData) => {
+                try {
+                  // Update local state first for immediate feedback
+                  setFormData(prev => ({
+                    ...prev,
+                    audioCueDefaults: newSettings
+                  }));
+                  
+                  if (!user?.id) {
+                    throw new Error('User not authenticated');
+                  }
+                  
+                  // Check if we have existing audio cue settings
+                  const { data: existingSettings, error: fetchError } = await supabase
                     .from('audio_cue_settings')
-                    .update({
-                      content: newSettings,
-                      updated_at: new Date().toISOString()
-                    })
-                    .eq('id', existingSettings.id);
-                    
-                  if (updateError) throw updateError;
-                } else {
-                  // Create new settings
-                  const { error: createError } = await supabase
-                    .from('audio_cue_settings')
-                    .insert([{
-                      user_id: user.id,
-                      name: 'default',
-                      enabled: true,
-                      volume: Math.round((newSettings.volume || 0.8) * 100), // Convert 0-1 to 0-100 scale
-                      frequency: '1km',
-                      content: newSettings
-                    }])
+                    .select('id')
+                    .eq('user_id', user.id)
                     .single();
-                    
-                  if (createError) throw createError;
+                  
+                  if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
+                    throw fetchError;
+                  }
+                  
+                  if (existingSettings) {
+                    // Update existing settings
+                    const { error: updateError } = await supabase
+                      .from('audio_cue_settings')
+                      .update({
+                        content: newSettings,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', existingSettings.id);
+                      
+                    if (updateError) throw updateError;
+                  } else {
+                    // Create new settings
+                    const { error: createError } = await supabase
+                      .from('audio_cue_settings')
+                      .insert([{
+                        user_id: user.id,
+                        name: 'default',
+                        enabled: true,
+                        volume: Math.round((newSettings.volume || 0.8) * 100), // Convert 0-1 to 0-100 scale
+                        frequency: '1km',
+                        content: newSettings
+                      }])
+                      .single();
+                      
+                    if (createError) throw createError;
+                  }
+                  
+                  // Show success message
+                  Alert.alert('Success', 'Audio cue settings saved successfully');
+                } catch (error) {
+                  console.error('Error saving audio cue settings:', error);
+                  Alert.alert('Error', 'Failed to save audio cue settings');
                 }
-                
-                // Show success message
-                Alert.alert('Success', 'Audio cue settings saved successfully');
-              } catch (error) {
-                console.error('Error saving audio cue settings:', error);
-                Alert.alert('Error', 'Failed to save audio cue settings');
-              }
-            }}
-            onClose={() => toggleSection('audioCues')}
-          />
+              }}
+              onClose={() => toggleSection('audioCues')}
+            />
+          </View>
         )}
       </View>
 

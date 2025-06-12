@@ -453,25 +453,49 @@ const LogActivityScreen = () => {
           </>
         )}
 
-        {/* Save Button */}
-        <TouchableOpacity onPress={handleSaveActivity}>
-          <LinearGradient
-            colors={['#f97316', '#fb923c']} // orange-500 and orange-400
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.saveButton}
+        {/* Save Activity FAB */}
+        <View style={styles.fabContainer}>
+          <TouchableOpacity 
+            onPress={handleSaveActivity}
+            activeOpacity={0.8}
+            style={styles.fab}
           >
-            <Text style={styles.saveButtonText}>
-              {isRunNotesEdit ? 'Save Notes' : isEditing ? 'Update Activity' : 'Save Activity'}
+            <Text style={styles.fabText}>
+              {isRunNotesEdit ? 'Save Notes' : isEditing ? 'Update' : 'Save'}
             </Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  // FAB styles
+  fabContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  fab: {
+    backgroundColor: '#f97316',
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 28,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  fabText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   // Container styles
   container: {
     flex: 1,
@@ -483,7 +507,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
-    paddingBottom: 40, // Extra padding at bottom for scrollview
+    paddingBottom: 100, // Extra padding at bottom for FAB
   },
   
   // Dropdown styles

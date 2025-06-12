@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
-import { ArrowLeft, CheckCircle, Zap, Edit3 } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle, Zap, Edit3, X } from 'lucide-react-native';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { RaceGoalData } from '../types/userTypes';
 import RaceTypeSelector from '../components/RaceTypeSelector';
@@ -129,9 +129,27 @@ const RaceGoalScreen = () => {
         <CheckCircle size={80} color="#22c55e" style={{ marginBottom: 20 }} />
         <Text style={styles.confirmationTitle}>Plan Set!</Text>
         <Text style={styles.confirmationSubtitle}>Your new training plan is ready.</Text>
-        <TouchableOpacity style={[styles.button, styles.primaryButton, { marginTop: 30 }]} onPress={handleResetAndSetNewGoal}>
-          <Text style={styles.buttonText}>Set Another Goal</Text>
-        </TouchableOpacity>
+        <View style={{ width: '100%', paddingHorizontal: 24, marginTop: 30 }}>
+          <TouchableOpacity 
+            style={{
+              width: '100%',
+              height: 56,
+              backgroundColor: '#10B981',
+              borderRadius: 28,
+              justifyContent: 'center',
+              alignItems: 'center',
+              elevation: 4,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.3,
+              shadowRadius: 3,
+            }}
+            onPress={handleResetAndSetNewGoal}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.fabText}>Set Another Goal</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
@@ -174,47 +192,52 @@ const RaceGoalScreen = () => {
       settings.raceGoal?.distance === flowRaceGoalDetails.distance;
 
     return (
-      <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContentContainer, {paddingBottom: 80}]}>
-        <TrainingPlan
-          fitnessLevel={flowFitnessLevel}
-          raceType={flowRaceType}
-          onReset={() => setStep('selectRaceType')} // Go back to race type selection
-        />
-        <View style={styles.fixedActionContainer}>
-          <View style={styles.buttonContainerFixed}>
-            {isViewingActiveSavedPlan ? (
-              <TouchableOpacity
-                style={[styles.button, styles.editButton, { flex: 1 } ]}
-                onPress={handleEditActiveGoal}
-              >
-                <Edit3 size={18} color="white" style={{marginRight: 8}} />
-                <Text style={styles.buttonText}>Edit Current Goal</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.button, styles.primaryButton, { flex: 1 } ]}
-                onPress={handleConfirmPlan}
-              >
-                <Text style={styles.buttonText}>Confirm & Start Plan</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity 
-            style={styles.stopGoalButton} 
-            onPress={() => {
-              // Clear race goal data
-              updateSettings({
-                ...settings,
-                raceGoal: undefined,
-                fitnessLevel: undefined
-              });
-              handleResetAndSetNewGoal();
-            }}
+      <View style={{ flex: 1 }}>
+        <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContentContainer, { paddingBottom: 120 }]}>
+          <TrainingPlan
+            fitnessLevel={flowFitnessLevel}
+            raceType={flowRaceType}
+            onReset={() => setStep('selectRaceType')} // Go back to race type selection
+          />
+          
+          {/* Confirm & Start Plan FAB (bottom center) */}
+          {!isViewingActiveSavedPlan && (
+            <TouchableOpacity
+              style={[styles.fab, styles.confirmFab]}
+              onPress={handleConfirmPlan}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.fabText}>Confirm & Start Plan</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+
+        {/* Edit Goal FAB (bottom left) */}
+        {isViewingActiveSavedPlan && (
+          <TouchableOpacity
+            style={[styles.fab, styles.editFab]}
+            onPress={handleEditActiveGoal}
           >
-            <Text style={styles.stopGoalText}>Stop Goal</Text>
+            <Edit3 size={24} color="#FFFFFF" />
           </TouchableOpacity>
-        </View>
-      </ScrollView>
+        )}
+
+        {/* Stop Goal FAB (bottom right) */}
+        <TouchableOpacity 
+          style={[styles.fab, styles.stopFab]} 
+          onPress={() => {
+            // Clear race goal data
+            updateSettings({
+              ...settings,
+              raceGoal: undefined,
+              fitnessLevel: undefined
+            });
+            handleResetAndSetNewGoal();
+          }}
+        >
+          <X size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
     );
   }
   
@@ -297,30 +320,7 @@ const RaceGoalScreen = () => {
           />
         ) : null}
         
-        <View style={styles.buttonContainerFixed}>
-          {(step !== 'confirmed' as Step) && (
-            <TouchableOpacity 
-              style={[styles.button, styles.primaryButton, { flex: 1 }]}
-              onPress={handleConfirmPlan}
-            >
-              <Text style={styles.buttonText}>Confirm & Start Plan</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-        <TouchableOpacity 
-          style={styles.stopGoalButton} 
-          onPress={() => {
-            // Clear race goal data
-            updateSettings({
-              ...settings,
-              raceGoal: undefined,
-              fitnessLevel: undefined
-            });
-            handleResetAndSetNewGoal();
-          }}
-        >
-          <Text style={styles.stopGoalText}>Stop Goal</Text>
-        </TouchableOpacity>
+        {/* Buttons are now handled by FABs in the parent component */}
       </ScrollView>
     );
   }
@@ -415,48 +415,58 @@ const styles = StyleSheet.create({
   buttonContainerFixed: {
     // This view is now part of ScrollView content for 'viewPlan' to avoid overlap issues
     // For other steps, if a fixed button is needed, it should be positioned carefully
-    // Or, ensure ScrollView contentContainerStyle has enough paddingBottom
-    flexDirection: 'row',
-    padding: 16,
-    paddingTop: 24, // Give some space from plan content
-  },
-  fixedActionContainer: {
     position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
-    flexDirection: 'column',
-    gap: 15,
-  },
-  stopGoalButton: {
-    alignItems: 'center',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
-    paddingVertical: 8,
-  },
-  stopGoalText: {
-    color: '#9ca3af',
-    fontSize: 14,
-    textDecorationLine: 'underline',
-  },
-  button: {
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    borderRadius: 8,
     alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    minHeight: 50,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
-  primaryButton: {
-    backgroundColor: '#f97316', // orange-500
+  editFab: {
+    bottom: 24,
+    left: 24,
+    backgroundColor: '#FFA500',
   },
-  editButton: {
-    backgroundColor: '#3f3f46', // zinc-700, for a less prominent edit button
+  stopFab: {
+    bottom: 24,
+    right: 24,
+    backgroundColor: '#EF4444',
   },
-  buttonText: {
+  fabText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+  },
+  // FAB (Floating Action Button) styles
+  fab: {
+    position: 'absolute',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  confirmFab: {
+    bottom: 24,
+    left: '50%',
+    transform: [{ translateX: -100 }], // Half of the width to center it
+    width: 200,
+    height: 56,
+    backgroundColor: '#10B981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
   },
   confirmationTitle: {
     fontSize: 28,

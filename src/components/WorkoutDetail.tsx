@@ -203,9 +203,11 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) =
           {onEditNotes && (
             <TouchableOpacity 
               onPress={() => onEditNotes(workout.id, workout.notes)}
-              style={styles.editButton}
+              style={styles.fabButton}
+              activeOpacity={0.8}
             >
-              <Text style={styles.editButtonText}>Edit Notes</Text>
+              <Edit3 size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <Text style={styles.fabButtonText}>Edit Notes</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -275,16 +277,24 @@ const styles = StyleSheet.create({
   container: {
     // flex: 1, // Temporarily removed for testing modal display
   },
-  editButton: {
+  fabButton: {
     backgroundColor: '#a855f7', // purple-600
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
-  editButtonText: {
-    color: '#f9fafb', // gray-50
-    fontSize: 12,
+  fabButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '500',
+    marginLeft: 4,
   },
   contentContainer: {
     paddingVertical: 16,

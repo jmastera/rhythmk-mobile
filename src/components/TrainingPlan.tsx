@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ArrowLeft, Calendar, Target } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Target, Edit3 } from 'lucide-react-native';
 import { getRaceColor } from '../utils/raceColors';
 
 interface TrainingWeek {
@@ -234,12 +234,7 @@ const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onR
         </TouchableOpacity>
       </View>
 
-      {/* Stop Goal Option */}
-      <View style={styles.stopGoalContainer}>
-        <TouchableOpacity onPress={onReset}>
-          <Text style={styles.stopGoalText}>Stop Goal</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Stop Goal Option - Removed as it's now handled by the parent RaceGoalScreen */}
     </ScrollView>
   );
 };
@@ -400,16 +395,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  stopGoalContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-  },
-  stopGoalText: {
-    color: '#9ca3af',
-    fontSize: 14,
-    textDecorationLine: 'underline',
-  },
+  // Removed unused styles as they're now handled by the parent RaceGoalScreen
 });
 
 export default TrainingPlan;

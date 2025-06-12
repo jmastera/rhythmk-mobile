@@ -88,21 +88,28 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
-    elevation: 5,
+    elevation: 4,
   },
   buttonText: {
-    color: '#FFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginLeft: 10,
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   startButton: {
-    backgroundColor: '#4CAF50', // Green
-    width: '100%',
-    maxWidth: 320, // Slightly wider to accommodate longer text
+    backgroundColor: '#10B981', // Green-500
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 5,
-    marginHorizontal: 5,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    minWidth: 200,
   },
   trackingControlsContainer: {
     flexDirection: 'row',
@@ -113,24 +120,36 @@ const styles = StyleSheet.create({
   },
   pauseResumeButton: {
     flex: 1,
-    maxWidth: 150,
-    marginHorizontal: 5,
+    maxWidth: 140,
+    marginHorizontal: 6,
     paddingVertical: 12,
-    paddingHorizontal: 5,
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   pauseButton: {
-    backgroundColor: '#FFC107', // Amber
+    backgroundColor: '#F59E0B', // Amber-500
   },
   resumeButton: {
-    backgroundColor: '#4CAF50', // Green
+    backgroundColor: '#10B981', // Green-500
   },
   finishButton: {
-    backgroundColor: '#F44336', // Red
+    backgroundColor: '#EF4444', // Red-500
     flex: 1,
-    maxWidth: 150,
-    marginHorizontal: 5,
+    maxWidth: 140,
+    marginHorizontal: 6,
     paddingVertical: 12,
-    paddingHorizontal: 5,
+    paddingHorizontal: 16,
+    borderRadius: 25,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   savingButton: {
     backgroundColor: '#757575', // Grey

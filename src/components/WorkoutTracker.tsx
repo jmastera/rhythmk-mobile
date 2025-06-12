@@ -122,6 +122,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
+    paddingBottom: 120, // Extra padding to account for FABs and Notes section
   },
   headerSection: {
     flexDirection: 'row',
@@ -188,6 +189,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     zIndex: 10,
+    paddingVertical: 8,
+    backgroundColor: 'transparent',
   },
   fab: {
     width: 56,
@@ -752,9 +755,15 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   return (
     <View style={styles.container}>
       <ScrollView
-        style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}
-        contentContainerStyle={styles.contentContainer}
+        style={{ flex: 1, paddingTop: insets.top }}
+        contentContainerStyle={[
+          styles.contentContainer,
+          (workoutState === 'tracking' || workoutState === 'paused') && {
+            paddingBottom: 160, // Extra padding when Notes section is visible
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
       >
       <HeaderSafeArea />
       <View style={styles.headerSection}>

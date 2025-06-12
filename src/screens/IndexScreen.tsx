@@ -57,7 +57,6 @@ const IndexScreen = () => {
     { id: 'Progress', title: 'Progress', icon: TrendingUp, description: 'Track your gains', navigateTo: 'Progress', styleType: 'primary' },
     { id: 'History', title: 'History', icon: Calendar, description: 'Past workouts', navigateTo: 'History', styleType: 'primary' },
     { id: 'LogActivity', title: 'Log Activity', icon: Plus, description: 'Manually add data', navigateTo: 'LogActivity', styleType: 'primary' },
-    { id: 'Settings', title: 'Settings', icon: SettingsIcon, description: 'App preferences', navigateTo: 'Settings', styleType: 'secondary' },
   ];
 
   const renderCard = (item: typeof cardData[0]) => {
@@ -167,12 +166,15 @@ const IndexScreen = () => {
           {renderCard(cardData.find(c => c.id === 'LogActivity')!)}
         </View>
 
-        {/* Row 4: Settings | (empty) */}
-        <View style={styles.rowContainer}>
-          {renderCard(cardData.find(c => c.id === 'Settings')!)}
-          <View style={styles.halfWidthCardItem} /> {/* Empty spacer */}
-        </View>
       </ScrollView>
+      
+      {/* Settings FAB */}
+      <TouchableOpacity 
+        style={styles.fab}
+        onPress={() => navigation.navigate('Settings')}
+      >
+        <SettingsIcon size={24} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -216,6 +218,22 @@ const styles = StyleSheet.create({
   },
   cardSpacer: {
     width: '4%', // Spacer for between half-width cards
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    left: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFA500',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
   },
   cardBase: {
     borderRadius: 12,

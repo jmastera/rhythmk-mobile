@@ -48,24 +48,33 @@ export const styles = StyleSheet.create({
     fontWeight: '500',
     marginLeft: 8,
   },
-  // Debug Section Styles
+  // Button Styles
   button: {
     flex: 1,
-    padding: 12,
-    borderRadius: 8,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 4,
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    marginHorizontal: 6,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   dangerButton: {
-    backgroundColor: 'rgba(255, 59, 48, 0.2)',
+    backgroundColor: '#EF4444', // Red-500
   },
   warningButton: {
-    backgroundColor: 'rgba(255, 149, 0, 0.2)',
+    backgroundColor: '#F59E0B', // Amber-500
   },
   buttonText: {
-    color: '#fff',
-    fontWeight: '500',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   debugInfoContainer: {
     marginTop: 20,
@@ -159,21 +168,29 @@ export const styles = StyleSheet.create({
   unitButton: {
     paddingVertical: 8,
     paddingHorizontal: 16,
-    borderRadius: 8, // Consistent with other elements
-    borderWidth: 1,
-    borderColor: '#FFA500', // Accent color
-    marginHorizontal: 4,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    marginHorizontal: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
   },
   unitButtonActive: {
-    backgroundColor: '#FFA500', // Accent color for active button
+    backgroundColor: '#FFA500',
+    borderColor: '#FFA500',
   },
   unitButtonText: {
     fontSize: 14,
-    color: '#FFA500', // Accent color
+    color: '#FFFFFF',
+    fontWeight: '500',
   },
   unitButtonTextActive: {
-    color: '#121212', // Dark text for active button
-    fontWeight: 'bold',
+    color: '#121212',
+    fontWeight: '600',
   },
   numericInput: {
     backgroundColor: 'rgba(80, 80, 80, 0.5)', // More opaque dark grey background
