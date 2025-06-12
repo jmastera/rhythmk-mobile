@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-import MapView, { Polyline, Marker } from 'react-native-maps';
-import { UserSettings } from '../types/userTypes'; // Adjust path if necessary
-import { Coordinate } from '../types/workoutTypes'; // Adjust path if necessary
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, Text, Platform } from 'react-native';
+import MapView, { Polyline, Marker, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
+import { UserSettings } from '../types/userTypes';
+import { Coordinate } from '../types/workoutTypes';
 
 interface WorkoutMapDisplayProps {
   settings: UserSettings;
@@ -18,52 +18,72 @@ const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
   currentLocation,
   workoutState
 }) => {
-  if (!settings.showMap) {
-    return null; // Don't render map if setting is off
-  }
+  const [mapReady, setMapReady] = useState(false);
+  const [region, setRegion] = useState<Region | null>(null);
 
-  const mapRegion = currentLocation
-    ? {
+  // Update region when current location changes
+  useEffect(() => {
+    if (currentLocation) {
+      const newRegion = {
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
-        latitudeDelta: 0.005, // Zoom level for latitude
-        longitudeDelta: 0.005, // Zoom level for longitude
-      }
-    : routeCoordinates.length > 0 
-    ? {
-        latitude: routeCoordinates[routeCoordinates.length -1].latitude,
-        longitude: routeCoordinates[routeCoordinates.length -1].longitude,
         latitudeDelta: 0.005,
         longitudeDelta: 0.005,
+      };
+      setRegion(newRegion);
     }
-    : null; // Default region or null if no location data
+  }, [currentLocation]);
+
+  const handleMapReady = () => {
+    setMapReady(true);
+  };
+  // Default region (San Francisco coordinates - will be overridden by actual location)
+  const defaultRegion = {
+    latitude: 37.7749,
+    longitude: -122.4194,
+    latitudeDelta: 0.0922,
+    longitudeDelta: 0.0421,
+  };
+
+  // Use the current region or default to San Francisco
+  const mapRegion = region || defaultRegion;
 
   return (
-    <View style={styles.mapContainer}>
-      {mapRegion ? (
-        <MapView style={styles.map} region={mapRegion} showsUserLocation={false} scrollEnabled={false} pitchEnabled={false} zoomEnabled={false}>
-          {routeCoordinates.length > 1 && (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor="#FFA500" // Orange color for the route
-              strokeWidth={5}
-            />
-          )}
-          {currentLocation && (workoutState === 'tracking' || workoutState === 'paused') && (
-            <Marker
-              coordinate={{
-                latitude: currentLocation.coords.latitude,
-                longitude: currentLocation.coords.longitude,
-              }}
-              title="Current Position"
-            >
-              <View style={styles.currentLocationMarker} />
-            </Marker>
-          )}
-        </MapView>
-      ) : (
-        <View style={styles.mapPlaceholder}>
-          <Text style={styles.mapPlaceholderText}>Waiting for location data to display map...</Text>
+    <View style={styles.container}>
+      <MapView
+        style={styles.map}
+        region={mapRegion}
+        onMapReady={handleMapReady}
+        showsUserLocation={true}
+        followsUserLocation={true}
+        showsMyLocationButton={true}
+        loadingEnabled={true}
+        loadingIndicatorColor="#666666"
+        loadingBackgroundColor="#1C1C1E"
+      >
+        {routeCoordinates.length > 1 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeColor="#FFA500"
+            strokeWidth={4}
+          />
+        )}
+        {currentLocation && (
+          <Marker
+            coordinate={{
+              latitude: currentLocation.coords.latitude,
+              longitude: currentLocation.coords.longitude,
+            }}
+            title="Your Position"
+          >
+            <View style={styles.currentLocationMarker} />
+          </Marker>
+        )}
+      </MapView>
+      
+      {!mapReady && (
+        <View style={styles.loadingOverlay}>
+          <Text style={styles.loadingText}>Loading map...</Text>
         </View>
       )}
     </View>
@@ -71,12 +91,19 @@ const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
 };
 
 const styles = StyleSheet.create({
-  mapContainer: {
+  container: {
     height: 250,
     marginBottom: 20,
     borderRadius: 15,
     overflow: 'hidden',
-    backgroundColor: '#2C2C2E', // Dark background for placeholder
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: '#333333',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
   },
   map: {
     ...StyleSheet.absoluteFillObject,
@@ -85,18 +112,26 @@ const styles = StyleSheet.create({
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: 'rgba(0, 122, 255, 0.9)', // Bright blue with some transparency
+    backgroundColor: '#FFA500',
     borderColor: '#FFFFFF',
     borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
-  mapPlaceholder: {
-    flex: 1,
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(28, 28, 30, 0.9)',
   },
-  mapPlaceholderText: {
-    color: '#A0A0A0',
-    fontSize: 14,
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 10,
   },
 });
 

@@ -26,7 +26,6 @@ import {
   formatDurationDisplay,
   formatDistanceDisplay,
 } from '../utils/PaceCalculator';
-import MapView, { Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import {
   Play,
   Pause,
@@ -43,6 +42,9 @@ import {
   VolumeX,
   Watch,
   Navigation,
+  Footprints,
+  Headphones,
+  X,
 } from 'lucide-react-native';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigationTypes';
@@ -116,6 +118,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1C1C1E', // Dark theme background
+    position: 'relative', // For absolute positioning of FAB
   },
   contentContainer: {
     padding: 16,
@@ -175,6 +178,65 @@ const styles = StyleSheet.create({
     color: '#DDD',
     fontSize: 12,
   },
+
+  fabContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    zIndex: 10,
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFA500',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+  },
+  leftFab: {
+    alignSelf: 'flex-start',
+  },
+  rightFab: {
+    alignSelf: 'flex-end',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#1E1E1E',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  pedometerContent: {
+    paddingBottom: 20,
+  },
 });
 
 // Helper to format race type for display (if not already available elsewhere)
@@ -220,6 +282,7 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   // UI and Interaction State
   const [countdownValue, setCountdownValue] = useState(0);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [showPedometerModal, setShowPedometerModal] = useState(false);
   const [currentCoachTip, setCurrentCoachTip] = useState<CoachTip | null>(null);
 
   // GPS and Pedometer
@@ -687,11 +750,12 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   }
 
   return (
-    <ScrollView
-      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}
-      contentContainerStyle={styles.contentContainer}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={styles.container}>
+      <ScrollView
+        style={{ flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom }}
+        contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+      >
       <HeaderSafeArea />
       <View style={styles.headerSection}>
         <View style={styles.headerContent}>
@@ -700,14 +764,14 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
         </View>
       </View>
 
-      {settings.showMap && (routeCoordinates.length > 0 || lastPosition) && (
+      <View style={{ height: 250, marginBottom: 20 }}>
         <WorkoutMapDisplay 
-          settings={settings}
+          settings={{ ...settings, showMap: true }}
           routeCoordinates={routeCoordinates}
-          currentLocation={lastPosition} // lastPosition is now a Location.LocationObject | null
+          currentLocation={lastPosition}
           workoutState={workoutState}
         />
-      )}
+      </View>
       
       <WorkoutStatsGrid
         displayDistance={displayDistance}
@@ -740,25 +804,6 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
         setWorkoutNotes={setWorkoutNotes}
       />
 
-      <PedometerModeDisplay 
-        isActive={currentIsTracking && !currentIsPaused}
-        gpsDistanceKm={distance} // Pass current GPS-based distance
-        onStepDistanceUpdate={handleStepDistanceUpdate} // For non-GPS mode
-        onHybridDistanceUpdate={handleHybridDistanceUpdate} // For GPS + pedometer mode
-        gpsActive={gpsActive}
-        onGpsActiveChange={handleGpsActiveChange}
-        usePedometer={settings.usePedometer ?? true}
-      />
-
-      {(workoutState === 'idle' || workoutState === 'finished') && (
-        <TouchableOpacity 
-          onPress={() => setShowAudioSettings(true)} 
-          style={styles.userSettingsButtonContainer}
-        >
-          <Settings size={22} color={userSettingsRef.current?.raceGoal ? getRaceColor(userSettingsRef.current.raceGoal.type) : "#FFA500"} />
-          <Text style={styles.userSettingsButtonText}>Audio Cue Settings</Text>
-        </TouchableOpacity>
-      )}
 
       <Modal
         animationType="slide"
@@ -782,7 +827,60 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
         </View>
       </Modal>
 
-    </ScrollView>
+      {/* Pedometer Mode Modal */}
+      <Modal
+        visible={showPedometerModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPedometerModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pedometer Mode</Text>
+              <TouchableOpacity 
+                onPress={() => setShowPedometerModal(false)}
+                style={styles.closeButton}
+              >
+                <X size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.pedometerContent}>
+              <PedometerModeDisplay
+                isActive={currentIsTracking && !currentIsPaused}
+                gpsDistanceKm={distance}
+                onStepDistanceUpdate={setPedometerDistance}
+                onHybridDistanceUpdate={setHybridDistance}
+                gpsActive={gpsActive}
+                onGpsActiveChange={handleGpsActiveChange}
+                usePedometer={settings.usePedometer ?? true}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      </ScrollView>
+
+      {/* FABs */}
+      <View style={styles.fabContainer}>
+        {/* Audio Cue Settings FAB */}
+        <TouchableOpacity 
+          style={[styles.fab, styles.leftFab]}
+          onPress={() => setShowAudioSettings(true)}
+        >
+          <Headphones size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+
+        {/* Pedometer Mode FAB */}
+        <TouchableOpacity 
+          style={[styles.fab, styles.rightFab, showPedometerModal && {backgroundColor: '#FF8C00'}]}
+          onPress={() => setShowPedometerModal(!showPedometerModal)}
+        >
+          <Footprints size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
