@@ -1,6 +1,17 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { AuthService, User } from '../services/AuthService';
 
+type ProfileUpdates = {
+  fullName?: string;
+  avatarUrl?: string;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  birthDate?: string;
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  data?: Record<string, any>;
+};
+
 type AuthContextType = {
   user: User | null;
   loading: boolean;
@@ -9,7 +20,7 @@ type AuthContextType = {
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  updateProfile: (updates: { fullName?: string; avatarUrl?: string }) => Promise<void>;
+  updateProfile: (updates: ProfileUpdates) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,16 +31,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [initialLoading, setInitialLoading] = useState(true);
 
   // Check if there's an active session when the app loads
-  const checkUser = useCallback(async () => {
+  const checkUser = useCallback(async (isRetry = false) => {
     try {
       console.log('Checking for existing session...');
       const { user } = await AuthService.getCurrentUser();
       setUser(user);
-    } catch (error) {
-      console.log('No existing session found or error:', error);
+    } catch (error: any) {
+      console.log('Session check error:', error?.message || error);
+      
+      // If we get an AuthSessionMissingError and this isn't a retry, wait a bit and try again
+      if (error?.name === 'AuthSessionMissingError' && !isRetry) {
+        console.log('Retrying session check after delay...');
+        setTimeout(() => checkUser(true), 500);
+        return;
+      }
+      
       setUser(null);
     } finally {
-      setInitialLoading(false);
+      if (!isRetry) {
+        setInitialLoading(false);
+      }
     }
   }, []);
 
@@ -91,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateProfile = async (updates: { fullName?: string; avatarUrl?: string }) => {
+  const updateProfile = async (updates: ProfileUpdates) => {
     try {
       setLoading(true);
       await AuthService.updateProfile(updates);

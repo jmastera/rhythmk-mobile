@@ -34,8 +34,10 @@ export interface UserSettings {
   preferredRunningDays?: number[]; // 0-6 for days of week
   
   // Measurements
-  userWeight?: number; // In kg
-  userHeight?: number; // In cm
+  userWeight?: number; // In kg (legacy)
+  userWeightKg?: number; // In kg
+  userHeight?: number; // In cm (legacy)
+  userHeightCm?: number; // In cm
   userHeightFeet?: number; // For display only when using imperial units
   userHeightInches?: number; // For display only when using imperial units
   

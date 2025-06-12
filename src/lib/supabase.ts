@@ -316,6 +316,16 @@ export const ensureWorkoutsTable = async () => {
 
 // Test the connection with detailed feedback
 export const testConnection = async () => {
+  // Helper function to safely get timeout function
+  const safeSetTimeout = (callback: () => void, ms: number) => {
+    if (typeof setTimeout === 'function') {
+      return setTimeout(callback, ms);
+    }
+    // Fallback for environments where setTimeout might not be available
+    console.warn('setTimeout not available, using fallback');
+    return 0 as unknown as NodeJS.Timeout;
+  };
+
   try {
     console.log('🔌 Testing Supabase connection...');
     
@@ -334,11 +344,28 @@ export const testConnection = async () => {
     
     console.log('✅ Authentication successful');
     
-    // 2. Test database access
+    // 2. Test database access with a timeout
     console.log('🔍 Testing database connection...');
-    const { data, error, status, count } = await supabase
+    
+    // Create a promise that will reject after 10 seconds
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      const timer = safeSetTimeout(() => {
+        reject(new Error('Database connection timed out after 10 seconds'));
+      }, 10000);
+      
+      // Ensure the timer is cleaned up if the promise resolves/rejects earlier
+      return () => clearTimeout(timer as unknown as number);
+    });
+    
+    // Race the database query against the timeout
+    const dbQuery = supabase
       .from('workouts')
       .select('*', { count: 'exact', head: true });
+    
+    const { data, error, status, count } = await Promise.race([
+      dbQuery,
+      timeoutPromise
+    ]);
     
     if (error) {
       console.error('❌ Database query error:', {
@@ -371,7 +398,8 @@ export const testConnection = async () => {
     return { 
       connected: false, 
       error: error.message || 'Unknown error occurred',
-      details: error.toString()
+      details: error.toString(),
+      code: error.code || 'UNKNOWN_ERROR'
     };
   }
 };

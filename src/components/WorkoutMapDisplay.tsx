@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Text, Platform } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, StyleSheet, Text, Platform, Alert } from 'react-native';
 import MapView, { Polyline, Marker, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { UserSettings } from '../types/userTypes';
@@ -20,8 +20,42 @@ const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
 }) => {
   const [mapReady, setMapReady] = useState(false);
   const [region, setRegion] = useState<Region | null>(null);
+  const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
 
-  // Update region when current location changes
+  // Request location permissions and get current location
+  const getLocation = useCallback(async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationPermission(false);
+        Alert.alert('Permission Denied', 'Location permission is required to show your current location on the map.');
+        return;
+      }
+      
+      setLocationPermission(true);
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+      });
+      
+      const newRegion = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      };
+      setRegion(newRegion);
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setLocationPermission(false);
+    }
+  }, []);
+
+  // Get location when component mounts
+  useEffect(() => {
+    getLocation();
+  }, [getLocation]);
+
+  // Update region when current location changes from parent
   useEffect(() => {
     if (currentLocation) {
       const newRegion = {
@@ -37,15 +71,15 @@ const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
   const handleMapReady = () => {
     setMapReady(true);
   };
-  // Default region (San Francisco coordinates - will be overridden by actual location)
+  // Default region (only used as fallback)
   const defaultRegion = {
-    latitude: 37.7749,
-    longitude: -122.4194,
+    latitude: 0,
+    longitude: 0,
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   };
 
-  // Use the current region or default to San Francisco
+  // Use the current region or default to (0,0) if no location available
   const mapRegion = region || defaultRegion;
 
   return (

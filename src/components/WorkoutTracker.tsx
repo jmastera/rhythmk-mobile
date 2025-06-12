@@ -266,7 +266,7 @@ interface WorkoutTrackerProps {
 const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTrackerProps): React.ReactElement => {
   const insets = useSafeAreaInsets();
   const currentPlan: TrainingPlan | undefined = route?.params?.currentPlan;
-  const { settings, isLoadingSettings } = useUserSettings();
+  const { settings, isLoadingSettings, updateAudioCueDefaults } = useUserSettings();
 
   // Workout Lifecycle State
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
@@ -825,11 +825,21 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
                 <AudioCueSettings
                     currentSettings={settings.audioCueDefaults}
                     onClose={() => setShowAudioSettings(false)}
-                    onSave={(newSettings) => {
-                        // This should be handled by useUserSettings hook now
-                        // updateAudioCueDefaults(newSettings); 
-                        console.log("AudioCueSettings modal save - settings should be updated via context");
+                    onSave={async (newSettings) => {
+                      try {
+                        // Update the audio cue settings via the context
+                        const success = await updateAudioCueDefaults(newSettings);
+                        if (success) {
+                          console.log("Audio cue settings saved successfully");
+                        } else {
+                          console.warn("Failed to save audio cue settings");
+                        }
+                      } catch (error) {
+                        console.error("Error saving audio cue settings:", error);
+                      } finally {
+                        // Always close the modal
                         setShowAudioSettings(false);
+                      }
                     }}
                 />
             </View>

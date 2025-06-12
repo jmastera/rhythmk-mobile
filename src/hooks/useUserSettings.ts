@@ -148,16 +148,30 @@ export const useUserSettings = () => {
   }, []);
 
   const updateAudioCueDefaults = useCallback(
-    (newAudioDefaults: Partial<AudioCueSettingsData>) => {
-      setSettings(prev => ({
-        ...prev,
-        audioCueDefaults: {
-          ...prev.audioCueDefaults,
-          ...newAudioDefaults,
-        },
-      }));
+    async (newAudioDefaults: Partial<AudioCueSettingsData>) => {
+      try {
+        // Update the in-memory state
+        const updatedSettings = {
+          ...settings,
+          audioCueDefaults: {
+            ...settings.audioCueDefaults,
+            ...newAudioDefaults,
+          },
+        };
+        
+        // Update state
+        setSettings(updatedSettings);
+        
+        // Explicitly save to AsyncStorage immediately
+        await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updatedSettings));
+        
+        return true;
+      } catch (error) {
+        console.error('Error updating audio cue settings:', error);
+        return false;
+      }
     },
-    []
+    [settings] // Include settings in dependency array
   );
 
   return {

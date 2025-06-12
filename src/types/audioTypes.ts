@@ -1,3 +1,5 @@
+export type AudioCueFrequency = '1km' | '0.5km' | '0.25km' | '2km' | '5km' | 'manual';
+
 export interface AudioCueSettingsData {
   // Audio cues general settings
   enabled: boolean;
@@ -19,5 +21,14 @@ export interface AudioCueSettingsData {
   
   // Additional announcements
   announceCalories: boolean;
-  splitAnnouncementsEnabled?: boolean;
+  splitAnnouncementsEnabled: boolean;
+  
+  // Internal fields
+  id?: string;
+  user_id?: string;
+  name?: string;
+  frequency?: AudioCueFrequency;
+  content?: Record<string, any>;
+  created_at?: string;
+  updated_at?: string;
 }
