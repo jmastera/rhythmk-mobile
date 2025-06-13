@@ -22,7 +22,7 @@ const CoachTipsDisplay: React.FC<CoachTipsDisplayProps> = ({
   currentCoachTip,
   workoutState,
 }) => {
-  if (!settings.showCoachTips || !currentCoachTip || (workoutState !== 'tracking' && workoutState !== 'paused')) {
+  if (!settings.showCoachTips || !currentCoachTip || (workoutState !== 'active' && workoutState !== 'paused')) {
     return null;
   }
 

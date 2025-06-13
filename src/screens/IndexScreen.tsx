@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
-import { Plus, PlayCircle, Target, TrendingUp, Calendar, Settings as SettingsIcon } from 'lucide-react-native';
+import { Plus, PlayCircle, Target, TrendingUp, Calendar, Map, Navigation, Settings as SettingsIcon } from 'lucide-react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../App'; // Adjust path if App.tsx is elsewhere
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 import { useUserSettings } from '../hooks/useUserSettings'; // Assuming path is correct
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRaceColor } from '../utils/raceColors';
@@ -50,13 +50,57 @@ const IndexScreen = () => {
   // Onboarding flow would typically be handled before this screen is mounted,
   // e.g., by a conditional navigator in App.tsx.
 
-  // Card Data
+  // Card data array with proper navigation types
   const cardData: CardDataItem[] = [
-    { id: 'StartRun', title: 'Start Run', icon: PlayCircle, description: 'Begin a new run', navigateTo: 'WorkoutTracker', styleType: 'primary', fullWidth: true },
-    { id: 'RaceGoal', title: 'Race Goal', icon: Target, description: 'Set your target', navigateTo: 'RaceGoal', styleType: 'primary' },
-    { id: 'Progress', title: 'Progress', icon: TrendingUp, description: 'Track your gains', navigateTo: 'Progress', styleType: 'primary' },
-    { id: 'History', title: 'History', icon: Calendar, description: 'Past workouts', navigateTo: 'History', styleType: 'primary' },
-    { id: 'LogActivity', title: 'Log Activity', icon: Plus, description: 'Manually add data', navigateTo: 'LogActivity', styleType: 'primary' },
+    { 
+      id: 'StartRun', 
+      title: 'Start Run', 
+      icon: PlayCircle, 
+      description: 'Begin a new run', 
+      navigateTo: 'WorkoutTracker', 
+      styleType: 'primary', 
+      fullWidth: true 
+    },
+    { 
+      id: 'SavedRoutes', 
+      title: 'Routes', 
+      icon: Navigation, 
+      description: 'Manage your routes', 
+      navigateTo: 'Routes', 
+      styleType: 'primary' 
+    },
+    { 
+      id: 'RaceGoal', 
+      title: 'Race Goal', 
+      icon: Target, 
+      description: 'Set your target', 
+      navigateTo: 'RaceGoal', 
+      styleType: 'primary' 
+    },
+    { 
+      id: 'Progress', 
+      title: 'Progress', 
+      icon: TrendingUp, 
+      description: 'Track your gains', 
+      navigateTo: 'Progress', 
+      styleType: 'primary' 
+    },
+    { 
+      id: 'History', 
+      title: 'History', 
+      icon: Calendar, 
+      description: 'Past workouts', 
+      navigateTo: 'History', 
+      styleType: 'primary' 
+    },
+    { 
+      id: 'LogActivity', 
+      title: 'Log Activity', 
+      icon: Plus, 
+      description: 'Manually log a workout', 
+      navigateTo: 'LogActivity', 
+      styleType: 'primary' 
+    },
   ];
 
   const renderCard = (item: typeof cardData[0]) => {
@@ -86,45 +130,26 @@ const IndexScreen = () => {
         key={item.id}
         style={[styles.cardBase, cardStyle, item.fullWidth ? styles.fullWidthCardItem : styles.halfWidthCardItem]}
         onPress={() => {
-          if (item.navigateTo) {
-            switch (item.navigateTo) {
-              case 'Index':
-                navigation.navigate('Index');
-                break;
-              case 'NotFound':
-                navigation.navigate('NotFound');
-                break;
-              case 'WorkoutTracker':
-                // Assuming WorkoutTracker might take params, but for this card, it's likely undefined
-                navigation.navigate('WorkoutTracker', { currentPlan: undefined }); 
-                break;
-              case 'Settings':
-                navigation.navigate('Settings');
-                break;
-              case 'Progress':
-                navigation.navigate('Progress');
-                break;
-              case 'History':
-                navigation.navigate('History');
-                break;
-              case 'RaceGoal':
-                navigation.navigate('RaceGoal');
-                break;
-              case 'LogActivity':
-                navigation.navigate('LogActivity');
-                break;
-              // Add cases for any other routes defined in RootStackParamList that cards might navigate to
-              default:
-                // Optionally handle unknown routes, though navigateTo is typed as keyof RootStackParamList
-                console.warn(`Unknown route: ${item.navigateTo}`);
-                break;
+          if (!item.navigateTo) return;
+          
+          // Type guard to ensure we only navigate to valid screens
+          const navigateToScreen = (screen: keyof RootStackParamList) => {
+            if (screen === 'WorkoutTracker') {
+              navigation.navigate('WorkoutTracker', { routeToFollow: undefined });
+            } else if ([
+              'Index', 'Home', 'Settings', 'Routes', 'RaceGoal', 
+              'Progress', 'History', 'LogActivity', 'NotFound'
+            ].includes(screen)) {
+              navigation.navigate(screen as any);
             }
-          }
+          };
+          
+          navigateToScreen(item.navigateTo as keyof RootStackParamList);
         }}
         activeOpacity={0.7}
       >
         <View style={[styles.iconContainerBase, iconStyle]}>
-          <IconComponent color={item.styleType === 'primary' ? "#FFFFFF" : "#3b82f6"} size={28} />
+          <IconComponent color="#FFFFFF" size={28} />
           {showRaceGoalBadge && (
             <View style={[styles.goalBadge, raceColor ? { backgroundColor: raceColor } : null]}>
               <Text style={styles.goalBadgeText}>{raceGoalText}</Text>
@@ -152,17 +177,22 @@ const IndexScreen = () => {
           {renderCard(cardData.find(c => c.id === 'StartRun')!)}
         </View>
 
-        {/* Row 2: Race Goal | Progress */}
+        {/* Row 2: Saved Routes */}
+        <View style={styles.rowContainer}>
+          {renderCard(cardData.find(c => c.id === 'SavedRoutes')!)}
+          <View style={styles.cardSpacer} />
+          {renderCard(cardData.find(c => c.id === 'History')!)}
+        </View>
+
+        {/* Row 3: Race Goal | Progress */}
         <View style={styles.rowContainer}>
           {renderCard(cardData.find(c => c.id === 'RaceGoal')!)}
           <View style={styles.cardSpacer} />
           {renderCard(cardData.find(c => c.id === 'Progress')!)}
         </View>
 
-        {/* Row 3: History | Log Activity */}
+        {/* Row 4: History | Log Activity */}
         <View style={styles.rowContainer}>
-          {renderCard(cardData.find(c => c.id === 'History')!)}
-          <View style={styles.cardSpacer} />
           {renderCard(cardData.find(c => c.id === 'LogActivity')!)}
         </View>
 
@@ -246,8 +276,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   secondaryCardBase: {
-    backgroundColor: 'rgba(75, 85, 99, 0.2)', // gray-600/20
-    borderColor: 'rgba(107, 114, 128, 0.3)', // gray-500/30
+    backgroundColor: 'rgba(255, 255, 255, 0.1)', // Same as primary but will be differentiated by icon background
+    borderColor: 'rgba(255, 255, 255, 0.2)', // Same as primary
   },
   iconContainerBase: {
     width: 56,
@@ -261,7 +291,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(59, 130, 246, 0.8)', // blue-500/80
   },
   secondaryIconContainer: {
-    backgroundColor: 'rgba(107, 114, 128, 0.5)', // gray-500/50
+    backgroundColor: 'rgba(59, 130, 246, 0.8)', // Same blue as primary
   },
   textContainer: {
     alignItems: 'center',

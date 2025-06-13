@@ -115,6 +115,7 @@ const SettingsScreen = () => {
     audioCues: false,      // Audio Cues section - collapsed by default
     displayPrefs: false,   // Display Preferences - collapsed by default
     workoutCards: false,   // Workout Cards section - collapsed by default
+    workoutSettings: false, // Workout Settings section - collapsed by default
     debugSettings: false,  // Debug Settings - collapsed by default
   });
   
@@ -216,7 +217,7 @@ const SettingsScreen = () => {
   };
   
   // Toggle expanded/collapsed state for a section
-  const toggleSection = (section: 'personalInfo' | 'audioCues' | 'userAttributes' | 'displayPrefs' | 'workoutCards' | 'debugSettings') => {
+  const toggleSection = (section: 'personalInfo' | 'audioCues' | 'userAttributes' | 'displayPrefs' | 'workoutCards' | 'workoutSettings' | 'debugSettings') => {
     setExpandedSections(prev => ({
       ...prev,
       [section]: !prev[section]
@@ -562,7 +563,7 @@ const SettingsScreen = () => {
       <View style={[styles.container, styles.centered]}>
         <HeaderSafeArea />
         <ActivityIndicator size="large" color="#FFA500" />
-        <Text style={styles.loadingText}>Loading Settings...</Text>
+        <Text style={styles.loadingText}>Loading rhythms...</Text>
       </View>
     );
   }
@@ -664,105 +665,6 @@ const SettingsScreen = () => {
               </TouchableOpacity>
             </View>
           </View>
-        )}
-      </View>
-
-      {/* Audio Cues Section */}
-      <View style={styles.sectionContainer}>
-        <TouchableOpacity 
-          style={styles.sectionHeader}
-          onPress={() => toggleSection('audioCues')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.sectionTitle}>Audio Cues</Text>
-          {expandedSections.audioCues ? 
-            <ChevronUp size={20} color="#FFF" /> : 
-            <ChevronDown size={20} color="#FFF" />}
-        </TouchableOpacity>
-        
-        {expandedSections.audioCues && (
-          <View style={{ marginTop: 8 }}>
-            <AudioCueSettings 
-              currentSettings={formData.audioCueDefaults || defaultAudioCueSettings}
-              onSave={async (newSettings: AudioCueSettingsData) => {
-                try {
-                  // Update local state first for immediate feedback
-                  setFormData(prev => ({
-                    ...prev,
-                    audioCueDefaults: newSettings
-                  }));
-                  
-                  if (!user?.id) {
-                    throw new Error('User not authenticated');
-                  }
-                  
-                  // Check if we have existing audio cue settings
-                  const { data: existingSettings, error: fetchError } = await supabase
-                    .from('audio_cue_settings')
-                    .select('id')
-                    .eq('user_id', user.id)
-                    .single();
-                  
-                  if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
-                    throw fetchError;
-                  }
-                  
-                  if (existingSettings) {
-                    // Update existing settings
-                    const { error: updateError } = await supabase
-                      .from('audio_cue_settings')
-                      .update({
-                        content: newSettings,
-                        updated_at: new Date().toISOString()
-                      })
-                      .eq('id', existingSettings.id);
-                      
-                    if (updateError) throw updateError;
-                  } else {
-                    // Create new settings
-                    const { error: createError } = await supabase
-                      .from('audio_cue_settings')
-                      .insert([{
-                        user_id: user.id,
-                        name: 'default',
-                        enabled: true,
-                        volume: Math.round((newSettings.volume || 0.8) * 100), // Convert 0-1 to 0-100 scale
-                        frequency: '1km',
-                        content: newSettings
-                      }])
-                      .single();
-                      
-                    if (createError) throw createError;
-                  }
-                  
-                  // Show success message
-                  Alert.alert('Success', 'Audio cue settings saved successfully');
-                } catch (error) {
-                  console.error('Error saving audio cue settings:', error);
-                  Alert.alert('Error', 'Failed to save audio cue settings');
-                }
-              }}
-              onClose={() => toggleSection('audioCues')}
-            />
-          </View>
-        )}
-      </View>
-
-      {/* Workout Dashboard Cards Section */}
-      <View style={styles.sectionContainer}>
-        <TouchableOpacity 
-          style={styles.sectionHeader}
-          onPress={() => toggleSection('workoutCards')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.sectionTitle}>Workout Dashboard</Text>
-          {expandedSections.workoutCards ? 
-            <ChevronUp size={20} color="#FFF" /> : 
-            <ChevronDown size={20} color="#FFF" />}
-        </TouchableOpacity>
-        
-        {expandedSections.workoutCards && (
-          <WorkoutCardSettings isExpanded={expandedSections.workoutCards} />
         )}
       </View>
 
@@ -890,6 +792,139 @@ const SettingsScreen = () => {
                     handleWeightKgChange(numValue);
                   } else {
                     handleWeightLbsChange(numValue);
+                  }
+                }}
+                onBlur={() => Keyboard.dismiss()}
+              />
+            </View>
+          </View>
+        )}
+      </View>
+
+      {/* Audio Cues Section */}
+      <View style={styles.sectionContainer}>
+        <TouchableOpacity 
+          style={styles.sectionHeader}
+          onPress={() => toggleSection('audioCues')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.sectionTitle}>Audio Cues</Text>
+          {expandedSections.audioCues ? 
+            <ChevronUp size={20} color="#FFF" /> : 
+            <ChevronDown size={20} color="#FFF" />}
+        </TouchableOpacity>
+        
+        {expandedSections.audioCues && (
+          <View style={{ marginTop: 8 }}>
+            <AudioCueSettings 
+              currentSettings={formData.audioCueDefaults || defaultAudioCueSettings}
+              onSave={async (newSettings: AudioCueSettingsData) => {
+                try {
+                  // Update local state first for immediate feedback
+                  setFormData(prev => ({
+                    ...prev,
+                    audioCueDefaults: newSettings
+                  }));
+                  
+                  if (!user?.id) {
+                    throw new Error('User not authenticated');
+                  }
+                  
+                  // Check if we have existing audio cue settings
+                  const { data: existingSettings, error: fetchError } = await supabase
+                    .from('audio_cue_settings')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .single();
+                  
+                  if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows returned
+                    throw fetchError;
+                  }
+                  
+                  if (existingSettings) {
+                    // Update existing settings
+                    const { error: updateError } = await supabase
+                      .from('audio_cue_settings')
+                      .update({
+                        content: newSettings,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', existingSettings.id);
+                      
+                    if (updateError) throw updateError;
+                  } else {
+                    // Create new settings
+                    const { error: createError } = await supabase
+                      .from('audio_cue_settings')
+                      .insert([{
+                        user_id: user.id,
+                        name: 'default',
+                        enabled: true,
+                        volume: Math.round((newSettings.volume || 0.8) * 100), // Convert 0-1 to 0-100 scale
+                        frequency: '1km',
+                        content: newSettings
+                      }])
+                      .single();
+                      
+                    if (createError) throw createError;
+                  }
+                  
+                  // Show success message
+                  Alert.alert('Success', 'Audio cue settings saved successfully');
+                } catch (error) {
+                  console.error('Error saving audio cue settings:', error);
+                  Alert.alert('Error', 'Failed to save audio cue settings');
+                }
+              }}
+              onClose={() => toggleSection('audioCues')}
+            />
+          </View>
+        )}
+      </View>
+
+      {/* Workout Dashboard Cards Section */}
+      <View style={styles.sectionContainer}>
+        <TouchableOpacity 
+          style={styles.sectionHeader}
+          onPress={() => toggleSection('workoutCards')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.sectionTitle}>Workout Dashboard</Text>
+          {expandedSections.workoutCards ? 
+            <ChevronUp size={20} color="#FFF" /> : 
+            <ChevronDown size={20} color="#FFF" />}
+        </TouchableOpacity>
+        
+        {expandedSections.workoutCards && (
+          <WorkoutCardSettings isExpanded={expandedSections.workoutCards} />
+        )}
+      </View>
+
+      {/* Workout Settings Section */}
+      <View style={styles.sectionContainer}>
+        <TouchableOpacity 
+          style={styles.sectionHeader}
+          onPress={() => toggleSection('workoutSettings')}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.sectionTitle}>Workout Settings</Text>
+          {expandedSections.workoutSettings ? 
+            <ChevronUp size={20} color="#FFF" /> : 
+            <ChevronDown size={20} color="#FFF" />}
+        </TouchableOpacity>
+        
+        {expandedSections.workoutSettings && (
+          <View style={styles.sectionContent}>
+            <View style={styles.settingRow}>
+              <Text style={styles.settingLabel}>Countdown Duration (seconds)</Text>
+              <TextInput
+                style={[styles.numericInput, { width: 80, textAlign: 'center' }]}
+                keyboardType="numeric"
+                value={preferences?.countdown_duration?.toString() || '5'}
+                onChangeText={(value) => {
+                  const numValue = parseInt(value, 10) || 0;
+                  if (numValue >= 0 && numValue <= 10) { // Limit to 0-10 seconds
+                    updateUserPreferences({ countdown_duration: numValue } as any);
                   }
                 }}
                 onBlur={() => Keyboard.dismiss()}

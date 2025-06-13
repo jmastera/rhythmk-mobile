@@ -1,4 +1,3 @@
-/// <reference path="../hooks/useLocation.d.ts" />
 /// <reference path="../utils/PaceCalculator.d.ts" />
 /// <reference path="../utils/TimeFormatter.d.ts" />
 
@@ -14,10 +13,11 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
+import BackgroundTimer from 'react-native-background-timer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { TablesInsert } from '../types/supabase';
-import { Coordinate, Split, WorkoutEntry, WORKOUT_HISTORY_KEY } from '../types/workoutTypes';
+import { Split, WorkoutEntry, WORKOUT_HISTORY_KEY, Coordinate } from '../types/workoutTypes';
 import { TrainingPlan } from '../types/trainingPlanTypes';
 import AudioCueSettings from './AudioCueSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -45,12 +45,19 @@ import {
   Footprints,
   Headphones,
   X,
+  TrendingUp,
 } from 'lucide-react-native';
-import { RouteProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/navigationTypes';
+import { WorkoutState } from '../types/workoutTypes';
+import MapView, { Polyline, Marker } from 'react-native-maps';
+import { Route, RoutePoint } from '../types/routeTypes';
 import { useAudioCues } from '../hooks/useAudioCues';
 import { AudioCueSettingsData } from '../types/audioTypes';
 import { useUserSettings } from '../hooks/useUserSettings';
+import { useRoutes } from '../contexts/RouteContext';
+import { NewRoute } from '../types/routeTypes';
+import { useWorkout } from '../contexts/WorkoutContext';
 
 import { useStepCounter } from '../hooks/useStepCounter';
 import { getRaceColor } from '../utils/raceColors';
@@ -73,15 +80,6 @@ import { supabase } from '../lib/supabase'; // Import Supabase client
 const DEFAULT_USER_WEIGHT_KG = 70;
 const SPLIT_DISTANCE_KM = 1;
 
-// Define the possible states for a workout
-export type WorkoutState =
-  | 'idle'
-  | 'countdown'
-  | 'tracking'
-  | 'paused'
-  | 'saving'
-  | 'finished';
-
 // Helper function to convert SplitData to Split for display
 interface SplitData {
   distance: number; // in km
@@ -102,13 +100,13 @@ const convertToSplit = (splitData: SplitData, index: number, displayUnit?: 'km' 
 };
 
 // Helper function to calculate distance between two lat/lng points (Haversine formula)
-const haversine = (coord1: Location.LocationObjectCoords, coord2: Location.LocationObjectCoords): number => {
+const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
   const R = 6371; // Radius of the Earth in km
-  const dLat = (coord2.latitude - coord1.latitude) * Math.PI / 180;
-  const dLon = (coord2.longitude - coord1.longitude) * Math.PI / 180;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(coord1.latitude * Math.PI / 180) * Math.cos(coord2.latitude * Math.PI / 180) *
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c; // Distance in km
@@ -120,27 +118,33 @@ const styles = StyleSheet.create({
     backgroundColor: '#1C1C1E', // Dark theme background
     position: 'relative', // For absolute positioning of FAB
   },
+  mapContainer: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
   contentContainer: {
     padding: 16,
     paddingBottom: 120, // Extra padding to account for FABs and Notes section
   },
-  headerSection: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  headerContent: {
+  headerTextContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
     alignItems: 'center',
   },
-  title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#FFF',
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
     marginBottom: 4,
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#AAA',
+  headerSubtitle: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    textAlign: 'center',
   },
   userSettingsButton: {
     padding: 8,
@@ -240,6 +244,70 @@ const styles = StyleSheet.create({
   pedometerContent: {
     paddingBottom: 20,
   },
+  routeInfoContainer: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 10,
+    padding: 12,
+  },
+  routeInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  routeName: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+  },
+  routeDistance: {
+    color: '#9ca3af',
+    fontSize: 16,
+    marginHorizontal: 10,
+  },
+  routeDetails: {
+    marginTop: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  routeStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  routeStatText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    marginLeft: 4,
+  },
+  progressBarContainer: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#3b82f6',
+  },
+  nextTurnContainer: {
+    marginTop: 10,
+    padding: 8,
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  nextTurnText: {
+    color: '#fff',
+    fontWeight: '500',
+  },
 });
 
 // Helper to format race type for display (if not already available elsewhere)
@@ -255,7 +323,15 @@ const formatRaceType = (type: string): string => {
   }
 };
 
-type WorkoutTrackerScreenRouteProp = RouteProp<RootStackParamList, 'WorkoutTracker'>;
+type WorkoutTrackerScreenRouteProp = RouteProp<
+  {
+    WorkoutTracker: {
+      routeToFollow?: Route;
+      currentPlan?: TrainingPlan;
+    };
+  },
+  'WorkoutTracker'
+>;
 
 interface WorkoutTrackerProps {
   route: WorkoutTrackerScreenRouteProp;
@@ -267,6 +343,12 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   const insets = useSafeAreaInsets();
   const currentPlan: TrainingPlan | undefined = route?.params?.currentPlan;
   const { settings, isLoadingSettings, updateAudioCueDefaults } = useUserSettings();
+  const { saveRoute } = useRoutes();
+  const { startWorkout, pauseWorkout, resumeWorkout, stopWorkout, currentWorkout } = useWorkout();
+  const navigationRoute = useRoute<RouteProp<RootStackParamList, 'WorkoutTracker'>>();
+  const { routeToFollow: initialRoute } = route.params || {};
+  const [routeToFollow, setRouteToFollow] = useState<Route | null>(initialRoute || null);
+  const [showRouteDetails, setShowRouteDetails] = useState(false);
 
   // Workout Lifecycle State
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
@@ -278,6 +360,7 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   const [currentPace, setCurrentPace] = useState(0); // min/km
   const [avgPace, setAvgPace] = useState(0); // min/km
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
+  const [userPathCoordinates, setUserPathCoordinates] = useState<Coordinate[]>([]); // Tracks user's actual path
   const [estimatedCalories, setEstimatedCalories] = useState(0);
   const [totalElevationGain, setTotalElevationGain] = useState(0);
   const [workoutNotes, setWorkoutNotes] = useState('');
@@ -287,6 +370,9 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [showPedometerModal, setShowPedometerModal] = useState(false);
   const [currentCoachTip, setCurrentCoachTip] = useState<CoachTip | null>(null);
+  const [nextTurnInstruction, setNextTurnInstruction] = useState<string>('');
+  const [distanceToNextTurn, setDistanceToNextTurn] = useState<number | null>(null);
+  const [routeProgress, setRouteProgress] = useState(0); // 0-100%
 
   // GPS and Pedometer
   const [lastPosition, setLastPosition] = useState<Location.LocationObject | null>(null);
@@ -295,14 +381,52 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   const [hybridDistance, setHybridDistance] = useState(0);
 
   // Refs for values needed in callbacks or intervals
+  const mapRef = useRef<MapView>(null);
+  const currentRoutePointIndex = useRef<number>(0);
+  const distanceToNextPoint = useRef<number | null>(null);
+  const nextTurn = useRef<any>(null);
+  const currentTurn = useRef<any>(null);
+  
+  // Initialize route to follow from navigation params
+  useEffect(() => {
+    if (routeToFollow?.waypoints?.length) {
+      // Set initial region to show the entire route
+      const lats = routeToFollow.waypoints.map((wp: RoutePoint) => wp.latitude);
+      const lngs = routeToFollow.waypoints.map((wp: RoutePoint) => wp.longitude);
+      const minLat = Math.min(...lats);
+      const maxLat = Math.max(...lats);
+      const minLng = Math.min(...lngs);
+      const maxLng = Math.max(...lngs);
+      
+      // Convert waypoints to coordinates for the map
+      const coordinates = routeToFollow.waypoints.map((wp: RoutePoint) => ({
+        latitude: wp.latitude,
+        longitude: wp.longitude,
+      }));
+      
+      // Update the route coordinates state
+      setRouteCoordinates(coordinates);
+      
+      // Focus the map on the route
+      mapRef.current?.fitToCoordinates(coordinates, {
+        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        animated: true,
+      });
+    } else {
+      // Clear route coordinates if no route to follow
+      setRouteCoordinates([]);
+    }
+  }, [routeToFollow]);
+  
+  // Refs for values needed in callbacks or intervals
   const lastPositionRef = useRef<Location.LocationObject | null>(null);
-  const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const durationIntervalRef = useRef<NodeJS.Timeout | number | null>(null);
+  const countdownIntervalRef = useRef<NodeJS.Timeout | number | null>(null);
   const locationSubscriptionRef = useRef<Location.LocationSubscription | null>(null);
   const userSettingsRef = useRef(settings); // To access latest settings in callbacks
 
   // Derived booleans from workoutState for convenience
-  const currentIsTracking = workoutState === 'tracking';
+  const currentIsTracking = workoutState === 'active';
   const currentIsPaused = workoutState === 'paused';
   const currentIsCountingDown = workoutState === 'countdown';
 
@@ -398,6 +522,7 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
     setAvgPace(0);
     setEstimatedCalories(0);
     setRouteCoordinates([]);
+    setUserPathCoordinates([]); // Reset user's path
     setLastPosition(null);
     lastPositionRef.current = null;
     setTotalElevationGain(0);
@@ -410,12 +535,23 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
       locationSubscriptionRef.current.remove();
       locationSubscriptionRef.current = null;
     }
-    if (durationIntervalRef.current) {
-      clearInterval(durationIntervalRef.current);
+    // Clear duration interval
+    if (durationIntervalRef.current !== null) {
+      if (typeof durationIntervalRef.current === 'number') {
+        BackgroundTimer.clearInterval(durationIntervalRef.current);
+      } else {
+        clearInterval(durationIntervalRef.current);
+      }
       durationIntervalRef.current = null;
     }
-    if (countdownIntervalRef.current) {
-      clearInterval(countdownIntervalRef.current);
+    
+    // Clear countdown interval
+    if (countdownIntervalRef.current !== null) {
+      if (typeof countdownIntervalRef.current === 'number') {
+        BackgroundTimer.clearInterval(countdownIntervalRef.current);
+      } else {
+        clearInterval(countdownIntervalRef.current);
+      }
       countdownIntervalRef.current = null;
     }
     console.log('WorkoutTracker: Tracking state reset complete.');
@@ -423,7 +559,16 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
 
   const startTracking = async () => {
     console.log('WorkoutTracker: Attempting to start tracking...');
+    
+    // Save the current route coordinates if we're following a route
+    const currentRouteCoords = [...routeCoordinates];
+    
     await resetTrackingState();
+    
+    // Restore the route coordinates if we're following a route
+    if (routeToFollow?.waypoints?.length) {
+      setRouteCoordinates(currentRouteCoords);
+    }
 
     const permStatus = await Location.getForegroundPermissionsAsync();
     if (!permStatus.granted) {
@@ -436,13 +581,19 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
     }
 
     try {
-      setWorkoutState('tracking');
+      setWorkoutState('active');
       setStartTime(Date.now());
       if (settings.audioCueDefaults?.enabled && announceWorkoutStart) announceWorkoutStart();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
-      durationIntervalRef.current = setInterval(() => {
+      if (durationIntervalRef.current) {
+        if (typeof durationIntervalRef.current === 'number') {
+          BackgroundTimer.clearInterval(durationIntervalRef.current);
+        } else {
+          clearInterval(durationIntervalRef.current);
+        }
+      }
+      durationIntervalRef.current = BackgroundTimer.setInterval(() => {
         setDuration(d => d + 1);
       }, 1000);
 
@@ -469,7 +620,14 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
               latitude: location.coords.latitude,
               longitude: location.coords.longitude,
             };
-            setRouteCoordinates((prevCoords) => [...prevCoords, newCoordinate]);
+            
+            // Update user's path
+            setUserPathCoordinates(prevCoords => [...prevCoords, newCoordinate]);
+            
+            // Only update route coordinates if we're not following a predefined route
+            if (!routeToFollow?.waypoints?.length) {
+              setRouteCoordinates(prevCoords => [...prevCoords, newCoordinate]);
+            }
 
             // Current location object (includes coords and timestamp)
             const currentFullLocation: Location.LocationObject = location; 
@@ -478,7 +636,12 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
               const prevFullLocation: Location.LocationObject = lastPositionRef.current;
 
               // Calculate distance increment
-              const distanceIncrementKm = haversine(prevFullLocation.coords, currentFullLocation.coords);
+              const distanceIncrementKm = haversineDistance(
+                prevFullLocation.coords.latitude,
+                prevFullLocation.coords.longitude,
+                currentFullLocation.coords.latitude,
+                currentFullLocation.coords.longitude
+              );
               console.log('[WorkoutTracker DEBUG] Location Callback: Distance increment (km):', distanceIncrementKm);
               
               setDistance((prevDistance) => prevDistance + distanceIncrementKm);
@@ -539,14 +702,20 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
     const initialCountdown = settings.countdownDuration ?? 3;
     setCountdownValue(initialCountdown);
 
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    if (countdownIntervalRef.current) {
+      if (typeof countdownIntervalRef.current === 'number') {
+        BackgroundTimer.clearInterval(countdownIntervalRef.current);
+      } else {
+        clearInterval(countdownIntervalRef.current);
+      }
+    }
 
     if (initialCountdown > 0 && settings.audioCueDefaults?.enabled && Speech) {
       Speech.speak(initialCountdown.toString(), { language: 'en-US' });
     }
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    countdownIntervalRef.current = setInterval(() => {
+    countdownIntervalRef.current = BackgroundTimer.setInterval(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       setCountdownValue((val) => {
         const nextVal = val - 1;
         if (nextVal > 0) {
@@ -556,7 +725,13 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           return nextVal;
         } else {
-          if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+          if (countdownIntervalRef.current) {
+            if (typeof countdownIntervalRef.current === 'number') {
+              BackgroundTimer.clearInterval(countdownIntervalRef.current);
+            } else {
+              clearInterval(countdownIntervalRef.current);
+            }
+          }
           countdownIntervalRef.current = null;
           if (settings.audioCueDefaults?.enabled && Speech) {
             Speech.speak('Go!', { language: 'en-US' });
@@ -570,17 +745,29 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   };
 
   const pauseTracking = () => {
-    if (workoutState === 'tracking') {
+    if (workoutState === 'active') {
       setWorkoutState('paused');
-      if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
+      if (durationIntervalRef.current) {
+        if (typeof durationIntervalRef.current === 'number') {
+          BackgroundTimer.clearInterval(durationIntervalRef.current);
+        } else {
+          clearInterval(durationIntervalRef.current);
+        }
+      }
       if (settings.audioCueDefaults?.enabled && Speech) Speech.speak('Workout paused', { language: 'en-US', rate: 0.9 });
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       console.log('WorkoutTracker: Tracking paused.');
     } else if (workoutState === 'paused') {
-      setWorkoutState('tracking');
+      setWorkoutState('active');
       // Restart duration timer
-      if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
-      durationIntervalRef.current = setInterval(() => {
+      if (durationIntervalRef.current) {
+        if (typeof durationIntervalRef.current === 'number') {
+          BackgroundTimer.clearInterval(durationIntervalRef.current);
+        } else {
+          clearInterval(durationIntervalRef.current);
+        }
+      }
+      durationIntervalRef.current = BackgroundTimer.setInterval(() => {
         setDuration(d => d + 1);
       }, 1000);
       if (settings.audioCueDefaults?.enabled && Speech) Speech.speak('Workout resumed', { language: 'en-US', rate: 0.9 });
@@ -699,6 +886,49 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
       );
       if (onWorkoutComplete) onWorkoutComplete(workoutData);
 
+      // Save the route if we have enough coordinates
+      if (routeCoordinates.length >= 2) {
+        try {
+          const routeName = `Run on ${new Date().toLocaleDateString()}`;
+          const waypoints = routeCoordinates.map(coord => {
+            const waypoint: Coordinate = {
+              latitude: coord.latitude,
+              longitude: coord.longitude
+            };
+            
+            // Only include optional properties if they exist
+            if (coord.altitude !== undefined) waypoint.altitude = coord.altitude;
+            if (coord.timestamp !== undefined) waypoint.timestamp = new Date(coord.timestamp).getTime();
+            if (coord.accuracy !== undefined) waypoint.accuracy = coord.accuracy;
+            if (coord.speed !== undefined) waypoint.speed = coord.speed;
+            if (coord.heading !== undefined) waypoint.heading = coord.heading;
+            
+            return waypoint;
+          });
+          
+          const newRoute: NewRoute = {
+            name: routeName,
+            waypoints,
+            distance: distance * 1000, // Convert to meters
+            elevationGain: totalElevationGain || 0,
+            isFavorite: false,
+            averagePace: avgPace,
+            maxSpeed: Math.max(...routeCoordinates.map(c => c.speed || 0)),
+            duration: duration,
+            caloriesBurned: estimatedCalories,
+            // These are optional in NewRoute but we provide them
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
+          
+          await saveRoute(newRoute);
+          console.log('Route saved successfully');
+        } catch (routeError) {
+          console.error('Failed to save route:', routeError);
+          // Don't show an error to the user for route saving
+        }
+      }
+
     } catch (error) {
       console.error('WorkoutTracker: Failed to save workout:', error);
       Alert.alert('Save Error', 'Failed to save workout data. It has been saved locally.');
@@ -743,11 +973,124 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
   const displayDuration = useMemo(() => formatDurationDisplay(duration), [duration]);
   const displayCalories = useMemo(() => `${Math.round(estimatedCalories)} kcal`, [estimatedCalories]);
 
+  // Map View
+  const renderMap = () => (
+    <View style={styles.mapContainer}>
+      <MapView
+        ref={mapRef}
+        style={styles.map}
+        showsUserLocation
+        followsUserLocation
+        showsMyLocationButton={false}
+        initialRegion={{
+          latitude: 37.7749,
+          longitude: -122.4194,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        }}
+      >
+        {routeToFollow?.waypoints && routeToFollow.waypoints.length > 0 && (
+          <>
+            <Polyline
+              coordinates={routeToFollow.waypoints.map((wp: RoutePoint) => ({
+                latitude: wp.latitude,
+                longitude: wp.longitude,
+              }))}
+              strokeColor="#3b82f6"
+              strokeWidth={4}
+            />
+            {/* Start marker */}
+            {routeToFollow.waypoints[0] && (
+              <Marker
+                coordinate={{
+                  latitude: routeToFollow.waypoints[0].latitude,
+                  longitude: routeToFollow.waypoints[0].longitude,
+                }}
+                title="Start"
+                pinColor="#10b981"
+              />
+            )}
+            {/* End marker */}
+            {routeToFollow.waypoints.length > 0 && (
+              <Marker
+                coordinate={{
+                  latitude: routeToFollow.waypoints[routeToFollow.waypoints.length - 1].latitude,
+                  longitude: routeToFollow.waypoints[routeToFollow.waypoints.length - 1].longitude,
+                }}
+                title="End"
+                pinColor="#ef4444"
+              />
+            )}
+          </>
+        )}
+      </MapView>
+      
+      {/* Route info overlay */}
+      {routeToFollow?.waypoints && routeToFollow.waypoints.length > 0 && (
+        <View style={styles.routeInfoContainer}>
+          <TouchableOpacity 
+            onPress={() => setShowRouteDetails(!showRouteDetails)}
+            style={styles.routeInfoHeader}
+          >
+            <Text style={styles.routeName}>{routeToFollow.name || 'Unnamed Route'}</Text>
+            <Text style={styles.routeDistance}>
+              {formatDistanceDisplay((routeToFollow.distance || 0) / 1000, 'km')}
+            </Text>
+            {showRouteDetails ? (
+              <ChevronUp size={20} color="#fff" />
+            ) : (
+              <ChevronDown size={20} color="#fff" />
+            )}
+          </TouchableOpacity>
+          
+          {showRouteDetails && (
+            <View style={styles.routeDetails}>
+              <View style={styles.routeStat}>
+                <Clock size={16} color="#9ca3af" />
+                <Text style={styles.routeStatText}>
+                  {formatDurationDisplay(routeToFollow.duration || 0)}
+                </Text>
+              </View>
+              {routeToFollow.elevationGain !== undefined && (
+                <View style={styles.routeStat}>
+                  <TrendingUp size={16} color="#9ca3af" />
+                  <Text style={styles.routeStatText}>
+                    {Math.round(routeToFollow.elevationGain)}m
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+          
+          {/* Progress bar */}
+          <View style={styles.progressBarContainer}>
+            <View 
+              style={[
+                styles.progressBar,
+                { width: `${routeProgress}%` }
+              ]} 
+            />
+          </View>
+          
+          {/* Next turn indicator */}
+          {nextTurnInstruction && (
+            <View style={styles.nextTurnContainer}>
+              <Text style={styles.nextTurnText}>
+                {nextTurnInstruction}{' '}
+                {distanceToNextTurn && `in ${Math.round(distanceToNextTurn)}m`}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+
   if (isLoadingSettings) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color="#FFA500" />
-        <Text style={[styles.title, { marginTop: 10 }]}>Loading Settings...</Text>
+        <Text style={[styles.headerTitle, { marginTop: 10 }]}>Loading rhythms...</Text>
       </View>
     );
   }
@@ -758,7 +1101,7 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
         style={{ flex: 1, paddingTop: insets.top }}
         contentContainerStyle={[
           styles.contentContainer,
-          (workoutState === 'tracking' || workoutState === 'paused') && {
+          (workoutState === 'active' || workoutState === 'paused') && {
             paddingBottom: 160, // Extra padding when Notes section is visible
           },
         ]}
@@ -766,17 +1109,25 @@ const WorkoutTracker = ({ route, navigation, onWorkoutComplete }: WorkoutTracker
         keyboardDismissMode="interactive"
       >
       <HeaderSafeArea />
-      <View style={styles.headerSection}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>{currentPlan?.name || 'Quick Run'}</Text>
-          <Text style={styles.subtitle}>{currentPlan?.type ? formatRaceType(currentPlan.type) : 'Track your workout'}</Text>
-        </View>
+      <View style={styles.headerTextContainer}>
+        <Text style={styles.headerTitle}>{currentPlan?.name || 'Quick Run'}</Text>
+        {currentPlan?.type && (
+          <Text style={styles.headerSubtitle}>
+            {formatRaceType(currentPlan.type)}
+          </Text>
+        )}
       </View>
 
       <View style={{ height: 250, marginBottom: 20 }}>
         <WorkoutMapDisplay 
           settings={{ ...settings, showMap: true }}
-          routeCoordinates={routeCoordinates}
+          routeCoordinates={routeToFollow?.waypoints?.length 
+            ? routeToFollow.waypoints.map(wp => ({
+                latitude: wp.latitude,
+                longitude: wp.longitude
+              })) 
+            : routeCoordinates}
+          userPathCoordinates={userPathCoordinates}
           currentLocation={lastPosition}
           workoutState={workoutState}
         />

@@ -35,6 +35,7 @@ import {
 import ErrorBoundary from '../components/ErrorBoundary';
 import WorkoutDetail from '../components/WorkoutDetail';
 import { WORKOUT_HISTORY_KEY } from '../types/history';
+import { HeaderSafeArea } from '../components/HeaderSafeArea';
 
 // Navigation types
 type RootStackParamList = {
@@ -213,8 +214,9 @@ const HistoryScreen: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <SafeAreaView style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
+      <SafeAreaView style={styles.container}>
+        <HeaderSafeArea />
+        <View style={styles.headerTextContainer}>
           <Text style={styles.headerTitle}>Workout History</Text>
         </View>
         <FlatList
@@ -331,18 +333,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111827', // Dark background
   },
-  header: {
-    padding: 16,
-    backgroundColor: '#111827',
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
+  headerTextContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#f3f4f6',
-    marginTop: 8,
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   centered: {
     flex: 1,

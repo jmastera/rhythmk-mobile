@@ -100,7 +100,7 @@ const Navigation: React.FC<NavigationProps> = ({
               displayOnClick = () => navigation.navigate('History', undefined);
               break;
             case 'RaceGoal':
-              displayOnClick = () => navigation.navigate('RaceGoal', undefined);
+              displayOnClick = () => navigation.navigate('RaceGoal', { goalId: undefined });
               break;
             case 'Settings':
               displayOnClick = () => navigation.navigate('Settings', undefined);

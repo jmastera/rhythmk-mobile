@@ -37,7 +37,7 @@ export const formatPaceDisplay = (paceInDecimalMinutes: number, unit: 'km' | 'mi
 };
 
 // Format distance in meters to km or miles with appropriate precision
-export const formatDistanceDisplay = (distanceInMeters: number, unit: 'km' | 'miles'): string => {
+export const formatDistanceDisplay = (distanceInMeters: number, unit: 'km' | 'miles' = 'km'): string => {
   if (distanceInMeters === 0 || isNaN(distanceInMeters)) {
     return '0.00';
   }

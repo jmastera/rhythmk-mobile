@@ -23,6 +23,6 @@ export const HeaderSafeArea = () => {
 const styles = StyleSheet.create({
   spacer: {
     width: '100%',
-    backgroundColor: '#111827', // Dark background to match app theme
+    // Removed background color to make it transparent
   },
 });

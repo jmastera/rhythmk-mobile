@@ -37,7 +37,7 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({
         </TouchableOpacity>
       )}
 
-      {(workoutState === 'tracking' || workoutState === 'paused') && (
+      {(workoutState === 'active' || workoutState === 'paused') && (
         <View style={styles.trackingControlsContainer}>
           <TouchableOpacity 
             style={[styles.button, styles.pauseResumeButton, workoutState === 'paused' ? styles.resumeButton : styles.pauseButton]}

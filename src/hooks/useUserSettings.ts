@@ -47,6 +47,7 @@ type AppUserSettings = UserSettings & {
 
 const defaultUserSettings: AppUserSettings = {
   audioCueDefaults: defaultAudioCueSettings,
+  countdownDuration: 5, // Default countdown duration in seconds
   fitnessLevel: undefined,
   raceGoal: undefined,
   displayUnit: 'km', // Default display unit

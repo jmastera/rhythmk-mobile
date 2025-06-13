@@ -1,3 +1,5 @@
+import { Coordinate as RouteCoordinate } from './routeTypes';
+
 // Workout tracking related types
 
 export const WORKOUT_HISTORY_KEY = 'rhythmk_workout_history';
@@ -5,16 +7,39 @@ export const WORKOUT_HISTORY_KEY = 'rhythmk_workout_history';
 export type WorkoutState = 
   | 'idle' 
   | 'countdown' 
-  | 'tracking' 
+  | 'active' 
   | 'paused' 
   | 'saving' 
   | 'finished';
+
+export interface Workout {
+  id: string;
+  startTime: number;
+  endTime: number;
+  duration: number;
+  distance: number;
+  avgPace: number | null;
+  currentPace: number | null;
+  elevationGain: number;
+  caloriesBurned: number;
+  heartRate: number | null;
+  steps: number;
+  positions: Array<{
+    latitude: number;
+    longitude: number;
+    altitude: number | null;
+    timestamp: number;
+  }>;
+}
 
 export interface Coordinate {
   latitude: number;
   longitude: number;
   altitude?: number | null;
   timestamp?: number;
+  accuracy?: number;
+  speed?: number | null;
+  heading?: number | null;
 }
 
 export interface TrackingPosition {

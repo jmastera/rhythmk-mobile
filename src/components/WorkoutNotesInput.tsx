@@ -13,8 +13,8 @@ const WorkoutNotesInput: React.FC<WorkoutNotesInputProps> = ({
   workoutNotes,
   setWorkoutNotes,
 }) => {
-  // Show notes input only when tracking or paused, as per the final comment decision before the error.
-  if (workoutState !== 'tracking' && workoutState !== 'paused') {
+  // Show notes input only when active or paused
+  if (workoutState !== 'active' && workoutState !== 'paused') {
     return null;
   }
 

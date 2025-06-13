@@ -9,7 +9,7 @@ interface UseLocationOptions {
   onLocationUpdate?: (location: TrackingPosition) => void;
 }
 
-export const useLocation = ({
+export const useLocationTracking = ({
   enabled,
   distanceInterval = 5, // meters
   timeInterval = 3000, // milliseconds

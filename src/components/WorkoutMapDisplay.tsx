@@ -3,18 +3,20 @@ import { View, StyleSheet, Text, Platform, Alert } from 'react-native';
 import MapView, { Polyline, Marker, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { UserSettings } from '../types/userTypes';
-import { Coordinate } from '../types/workoutTypes';
+import { Coordinate, WorkoutState } from '../types/workoutTypes';
 
 interface WorkoutMapDisplayProps {
   settings: UserSettings;
-  routeCoordinates: Coordinate[];
+  routeCoordinates: Coordinate[];  // Predefined route (orange)
+  userPathCoordinates: Coordinate[]; // User's actual path (blue)
   currentLocation: Location.LocationObject | null;
-  workoutState: 'idle' | 'countdown' | 'tracking' | 'paused' | 'saving' | 'finished';
+  workoutState: WorkoutState;
 }
 
 const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
   settings,
   routeCoordinates,
+  userPathCoordinates,
   currentLocation,
   workoutState
 }) => {
@@ -95,11 +97,21 @@ const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
         loadingIndicatorColor="#666666"
         loadingBackgroundColor="#1C1C1E"
       >
+        {/* Predefined route (orange) */}
         {routeCoordinates.length > 1 && (
           <Polyline
             coordinates={routeCoordinates}
             strokeColor="#FFA500"
             strokeWidth={4}
+          />
+        )}
+        
+        {/* User's actual path (blue) */}
+        {userPathCoordinates.length > 1 && (
+          <Polyline
+            coordinates={userPathCoordinates}
+            strokeColor="#007AFF"
+            strokeWidth={3}
           />
         )}
         {currentLocation && (

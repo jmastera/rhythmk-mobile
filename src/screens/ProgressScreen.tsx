@@ -43,7 +43,7 @@ const ProgressScreen: React.FC = () => {
     return (
       <View style={styles.centeredMessageContainer}>
         <HeaderSafeArea />
-        <Text style={styles.noPlanTitle}>Loading settings...</Text>
+        <Text style={styles.noPlanTitle}>Loading rhythms...</Text>
       </View>
     );
   }
