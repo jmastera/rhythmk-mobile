@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
-import { Plus, PlayCircle, Target, TrendingUp, Calendar, Map, Navigation, Settings as SettingsIcon } from 'lucide-react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { Plus, PlayCircle, Target, TrendingUp, Calendar, Map, Navigation } from 'lucide-react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { useUserSettings } from '../hooks/useUserSettings'; // Assuming path is correct
+import { useUserSettings } from '../hooks/useUserSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRaceColor } from '../utils/raceColors';
 import { HeaderSafeArea } from '../components/HeaderSafeArea';
+import { useTheme, Theme } from '../theme/ThemeProvider';
 
 // Assuming the logo is in assets/rhythmk-logo-trans.png
 const logo = require('../../assets/rhythmk-logo-trans.png');
@@ -22,42 +23,39 @@ interface CardDataItem {
   fullWidth?: boolean;
 }
 
-type IndexScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Index'>;
+type IndexScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Index'> & {
+  navigate: (screen: keyof RootStackParamList, params?: any) => void;
+};
 
 const IndexScreen = () => {
   const navigation = useNavigation<IndexScreenNavigationProp>();
   const { settings, refreshSettings } = useUserSettings();
   const insets = useSafeAreaInsets();
+  const theme = useTheme() as Theme;
+  
   // State to force re-render when race goal is updated
   const [forceUpdate, setForceUpdate] = useState(0);
   
   // Refresh settings when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      // This will be called when the screen comes into focus
       refreshSettings();
-      // Force re-render to update UI (especially for badge visibility)
       setForceUpdate(prev => prev + 1);
       return () => {}; // cleanup function
-    }, [])
+    }, [refreshSettings])
   );
 
   // Determine if there's an active plan based on user settings
-  // Use forceUpdate in the dependency array to ensure this is recalculated
-  const hasActivePlan = Boolean(settings.raceGoal && settings.raceGoal.type && settings.fitnessLevel);
+  const hasActivePlan = Boolean(settings.raceGoal?.type && settings.fitnessLevel);
 
-  // For now, we assume the user is always onboarded when reaching IndexScreen.
-  // Onboarding flow would typically be handled before this screen is mounted,
-  // e.g., by a conditional navigator in App.tsx.
-
-  // Card data array with proper navigation types
+  // Card data array with navigation handlers
   const cardData: CardDataItem[] = [
     { 
       id: 'StartRun', 
       title: 'Start Run', 
       icon: PlayCircle, 
       description: 'Begin a new run', 
-      navigateTo: 'WorkoutTracker', 
+      navigateTo: 'StartRun', 
       styleType: 'primary', 
       fullWidth: true 
     },
@@ -90,7 +88,7 @@ const IndexScreen = () => {
       title: 'History', 
       icon: Calendar, 
       description: 'Past workouts', 
-      navigateTo: 'History', 
+      navigateTo: 'HistoryList', 
       styleType: 'primary' 
     },
     { 
@@ -121,90 +119,99 @@ const IndexScreen = () => {
         case '10k': raceGoalText = '10K'; break;
         case 'half-marathon': raceGoalText = 'Half'; break;
         case 'marathon': raceGoalText = 'Full'; break;
+        case 'hyrox': raceGoalText = 'Hyrox'; break;
         default: raceGoalText = 'Race'; break;
       }
     }
 
+    const handlePress = () => {
+      if (!item.navigateTo) return;
+      
+      // Special handling for modal screens
+      if (item.navigateTo === 'RaceGoal') {
+        // Just navigate to RaceGoal without the ID since it's not part of the type
+        navigation.navigate('RaceGoal');
+      } else if (item.navigateTo === 'LogActivity') {
+        navigation.navigate('LogActivity');
+      } else {
+        // For tab navigation, we can use navigate to switch tabs
+        navigation.navigate(item.navigateTo as any);
+      }
+    };
+
     return (
       <TouchableOpacity 
         key={item.id}
-        style={[styles.cardBase, cardStyle, item.fullWidth ? styles.fullWidthCardItem : styles.halfWidthCardItem]}
-        onPress={() => {
-          if (!item.navigateTo) return;
-          
-          // Type guard to ensure we only navigate to valid screens
-          const navigateToScreen = (screen: keyof RootStackParamList) => {
-            if (screen === 'WorkoutTracker') {
-              navigation.navigate('WorkoutTracker', { routeToFollow: undefined });
-            } else if ([
-              'Index', 'Home', 'Settings', 'Routes', 'RaceGoal', 
-              'Progress', 'History', 'LogActivity', 'NotFound'
-            ].includes(screen)) {
-              navigation.navigate(screen as any);
-            }
-          };
-          
-          navigateToScreen(item.navigateTo as keyof RootStackParamList);
-        }}
+        style={[
+          styles.cardBase, 
+          cardStyle, 
+          item.fullWidth ? styles.fullWidthCardItem : styles.halfWidthCardItem,
+        ]}
+        onPress={handlePress}
         activeOpacity={0.7}
       >
-        <View style={[styles.iconContainerBase, iconStyle]}>
-          <IconComponent color="#FFFFFF" size={28} />
-          {showRaceGoalBadge && (
-            <View style={[styles.goalBadge, raceColor ? { backgroundColor: raceColor } : null]}>
-              <Text style={styles.goalBadgeText}>{raceGoalText}</Text>
+        <View style={[styles.iconContainer, iconStyle]}>
+          <IconComponent 
+            size={24} 
+            color={item.styleType === 'primary' ? '#FFFFFF' : theme.colors.primary} 
+          />
+          {showRaceGoalBadge && raceColor && (
+            <View style={[styles.raceBadge, { backgroundColor: raceColor }]}>
+              <Text style={styles.raceBadgeText}>{raceGoalText}</Text>
             </View>
           )}
         </View>
         <View style={styles.textContainer}>
-          <Text style={[styles.titleTextBase, titleStyle]}>{item.title}</Text>
-          <Text style={[styles.descriptionTextBase, descStyle]}>{item.description}</Text>
+          <Text style={[styles.titleText, titleStyle, { color: theme.colors.text.primary }]}>
+            {item.title}
+          </Text>
+          <Text style={[styles.descriptionText, descStyle, { color: theme.colors.text.secondary }]}>
+            {item.description}
+          </Text>
         </View>
       </TouchableOpacity>
     );
   };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={[styles.scrollView, { backgroundColor: theme.colors.background, flex: 1 }]}>
+      <StatusBar barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'} />
       <HeaderSafeArea />
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContentContainer}>
-        <View style={[styles.logoContainer, { paddingVertical: 10 }]}>
+      <ScrollView 
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContentContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.logoContainer}>
           <Image source={logo} style={styles.logo} resizeMode="contain" />
         </View>
-
-        {/* Row 1: Start Run */}
-        <View style={styles.rowContainer}>
-          {renderCard(cardData.find(c => c.id === 'StartRun')!)}
+        
+        <View style={[styles.rowContainer, styles.cardRow]}>
+          {cardData.filter(card => card.id === 'StartRun').map((item) => renderCard(item))}
         </View>
 
-        {/* Row 2: Saved Routes */}
-        <View style={styles.rowContainer}>
-          {renderCard(cardData.find(c => c.id === 'SavedRoutes')!)}
-          <View style={styles.cardSpacer} />
-          {renderCard(cardData.find(c => c.id === 'History')!)}
+        <View style={[styles.rowContainer, styles.cardRow]}>
+          {cardData
+            .filter(card => ['SavedRoutes', 'History'].includes(card.id))
+            .map((item) => (
+              <React.Fragment key={item.id}>
+                {renderCard(item)}
+                {item.id === 'SavedRoutes' && <View style={styles.cardSpacer} />}
+              </React.Fragment>
+            ))}
         </View>
 
-        {/* Row 3: Race Goal | Progress */}
-        <View style={styles.rowContainer}>
-          {renderCard(cardData.find(c => c.id === 'RaceGoal')!)}
-          <View style={styles.cardSpacer} />
-          {renderCard(cardData.find(c => c.id === 'Progress')!)}
+        <View style={[styles.rowContainer, styles.cardRow, { marginBottom: 0 }]}>
+          {cardData
+            .filter(card => ['RaceGoal', 'Progress', 'LogActivity'].includes(card.id))
+            .map((item, index, array) => (
+              <React.Fragment key={item.id}>
+                {renderCard(item)}
+                {index < array.length - 1 && <View style={styles.cardSpacer} />}
+              </React.Fragment>
+            ))}
         </View>
-
-        {/* Row 4: History | Log Activity */}
-        <View style={styles.rowContainer}>
-          {renderCard(cardData.find(c => c.id === 'LogActivity')!)}
-        </View>
-
       </ScrollView>
-      
-      {/* Settings FAB */}
-      <TouchableOpacity 
-        style={styles.fab}
-        onPress={() => navigation.navigate('Settings')}
-      >
-        <SettingsIcon size={24} color="#FFFFFF" />
-      </TouchableOpacity>
     </View>
   );
 };
@@ -214,161 +221,139 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#111827', // Dark background, similar to slate-900
   },
+  scrollContentContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    alignItems: 'center',
+  },
   container: {
     flex: 1,
     alignItems: 'center',
   },
-  scrollContentContainer: {
-    paddingHorizontal: 16, // Add horizontal padding for rows
-    paddingBottom: 20,
-    alignItems: 'center', // Still useful for logo
-  },
   logoContainer: {
-    width: '100%',
     alignItems: 'center',
-    paddingVertical: 20,
-    backgroundColor: 'transparent', // Changed to transparent from blueish color
-    marginBottom: 10,
+    marginVertical: 30,
+    width: '100%',
   },
   logo: {
-    width: 180,
-    height: 70,
+    width: 120,
+    height: 120,
+    marginBottom: 16,
+  },
+  welcomeText: {
+    fontSize: 28,
+    fontWeight: '700',
+    marginBottom: 8,
+    color: '#F9FAFB', // Light text color
+  },
+  subtitleText: {
+    fontSize: 16,
+    color: '#9CA3AF', // Gray-400 for subtitle
+    marginBottom: 24,
   },
   rowContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    width: '100%',
     justifyContent: 'space-between',
-    width: '100%',
-    marginBottom: 16,
+    marginBottom: 0, // Remove bottom margin from container
   },
-  fullWidthCardItem: {
-    width: '100%',
-  },
-  halfWidthCardItem: {
-    width: '48%', // Allows for a small gap with justifyContent: 'space-between'
+  cardRow: {
+    // No additional margins needed here
   },
   cardSpacer: {
-    width: '4%', // Spacer for between half-width cards
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    left: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFA500',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    width: '4%', // Space between cards
   },
   cardBase: {
     borderRadius: 12,
-    padding: 16,
+    padding: 20,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
     borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   primaryCardBase: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    // Transparent background with subtle border for primary cards
+    backgroundColor: 'rgba(31, 41, 55, 0.3)',
   },
   secondaryCardBase: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', // Same as primary but will be differentiated by icon background
-    borderColor: 'rgba(255, 255, 255, 0.2)', // Same as primary
+    // Slightly different transparency for secondary cards
+    backgroundColor: 'rgba(31, 41, 55, 0.2)',
   },
-  iconContainerBase: {
+  iconContainer: {
     width: 56,
     height: 56,
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    position: 'relative',
+    backgroundColor: 'rgba(59, 130, 246, 0.2)', // Slightly transparent blue
   },
   primaryIconContainer: {
-    backgroundColor: 'rgba(59, 130, 246, 0.8)', // blue-500/80
+    backgroundColor: 'rgba(59, 130, 246, 0.2)', // Semi-transparent blue
   },
   secondaryIconContainer: {
-    backgroundColor: 'rgba(59, 130, 246, 0.8)', // Same blue as primary
+    backgroundColor: 'rgba(59, 130, 246, 0.1)', // More transparent for secondary
   },
   textContainer: {
     alignItems: 'center',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginTop: 8,
   },
-  goalBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: '#f97316',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-    minWidth: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  goalBadgeText: {
-    color: 'white',
-    fontSize: 11,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  titleTextBase: {
-    fontSize: 17, // Unified title size
+  titleText: {
+    fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
+    textAlign: 'center',
   },
   primaryTitleText: {
-    color: '#FFFFFF',
+    color: '#F9FAFB', // White text for primary cards
   },
   secondaryTitleText: {
     color: '#E5E7EB', // Light gray for secondary titles
   },
-  descriptionTextBase: {
-    fontSize: 13, // Unified description size
+  descriptionText: {
+    fontSize: 14,
+    color: '#E5E7EB', // Lighter gray for better visibility on dark
     textAlign: 'center',
   },
   primaryDescriptionText: {
-    color: '#d1d5db', // gray-300
+    color: '#9CA3AF', // Lighter text for primary cards
   },
   secondaryDescriptionText: {
-    color: '#9CA3AF', // gray-400
+    color: '#9CA3AF',
   },
-  navigationContainer: {
-    width: '100%',
-    paddingHorizontal: 16, // Consistent horizontal padding
-    marginBottom: 10,
-  },
-  mainContent: {
-    width: '100%',
-    paddingHorizontal: 10,
-  },
-  infoText: {
-    color: 'white',
-    textAlign: 'center',
-    padding: 20,
-  },
-  backButton: {
+  raceBadge: {
     position: 'absolute',
-    bottom: 20,
-    left: 20,
-    padding: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    borderRadius: 30,
-    elevation: 3, // Shadow for Android
-    shadowColor: '#000', // Shadow for iOS
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 2,
+    top: -8,
+    right: -8,
+    backgroundColor: '#10B981', // Emerald-500
+    borderRadius: 12,
+    minWidth: 40,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  raceBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  fullWidthCardItem: {
+    width: '100%',
+    // No fixed height to allow natural content height
+    marginBottom: 12, // 12px spacing after full-width card
+  },
+  halfWidthCardItem: {
+    width: '48%',
+    aspectRatio: 1, // Make cards square
+    justifyContent: 'center', // Center content vertically
+    marginBottom: 12, // 12px spacing after half-width cards
+  },
+
 });
 
 export default IndexScreen;
-

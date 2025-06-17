@@ -1,6 +1,6 @@
 // src/theme/styles.ts
 import { StyleSheet, ViewStyle, TextStyle, ImageStyle } from 'react-native';
-import { theme } from './theme';
+import { lightTheme } from './theme';
 
 type NamedStyles<T> = { [P in keyof T]: ViewStyle | TextStyle | ImageStyle };
 
@@ -27,27 +27,27 @@ export const commonStyles = makeStyles({
   
   // Spacing
   p4: {
-    padding: theme.spacing.xs,
+    padding: lightTheme.spacing.xs,
   },
   p8: {
-    padding: theme.spacing.sm,
+    padding: lightTheme.spacing.sm,
   },
   p16: {
-    padding: theme.spacing.md,
+    padding: lightTheme.spacing.md,
   },
   p24: {
-    padding: theme.spacing.lg,
+    padding: lightTheme.spacing.lg,
   },
   
   // Margins
   m4: {
-    margin: theme.spacing.xs,
+    margin: lightTheme.spacing.xs,
   },
   m8: {
-    margin: theme.spacing.sm,
+    margin: lightTheme.spacing.sm,
   },
   m16: {
-    margin: theme.spacing.md,
+    margin: lightTheme.spacing.md,
   },
   
   // Text
@@ -55,39 +55,39 @@ export const commonStyles = makeStyles({
     textAlign: 'center',
   },
   textPrimary: {
-    color: theme.colors.text.primary,
+    color: lightTheme.colors.text.primary,
   },
   textSecondary: {
-    color: theme.colors.text.secondary,
+    color: lightTheme.colors.text.secondary,
   },
   
   // Buttons
   button: {
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
-    padding: theme.spacing.md,
+    backgroundColor: lightTheme.colors.primary,
+    borderRadius: lightTheme.borderRadius.md,
+    padding: lightTheme.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
   buttonText: {
-    color: theme.colors.text.inverse,
-    fontSize: theme.text.button.fontSize,
-    fontWeight: theme.text.button.fontWeight,
+    color: lightTheme.colors.text.inverse,
+    fontSize: lightTheme.typography.button.fontSize,
+    fontWeight: lightTheme.typography.button.fontWeight,
   },
 });
 
 // Card styles
 export const cardStyles = makeStyles({
   card: {
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.borderRadius.lg,
-    padding: theme.spacing.lg,
+    backgroundColor: lightTheme.colors.background,
+    borderRadius: lightTheme.borderRadius.lg,
+    padding: lightTheme.spacing.lg,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderColor: lightTheme.colors.border,
   },
   selectedCard: {
     backgroundColor: '#F0FDF4',
-    borderColor: theme.colors.success,
+    borderColor: lightTheme.colors.success,
     borderWidth: 2,
   },
 });

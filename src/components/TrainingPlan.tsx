@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { useTheme } from '../theme/ThemeProvider';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, Calendar, Target, Edit3, Download, Share2 } from 'lucide-react-native';
 import { getRaceColor } from '../utils/raceColors';
@@ -32,8 +33,166 @@ interface TrainingPlanProps {
 }
 
 const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onReset }) => {
+  const theme = useTheme();
   // Get race-specific color for consistent styling
   const raceColor = getRaceColor(raceType);
+  
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 16,
+      backgroundColor: 'transparent',
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    backButton: {
+      padding: 8, // Make it easier to tap
+      marginRight: 8,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: theme.colors.text.primary,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: theme.colors.text.secondary,
+      textAlign: 'center',
+      marginBottom: 24,
+      paddingHorizontal: 20,
+    },
+    errorText: {
+      color: 'yellow',
+      textAlign: 'center',
+      fontSize: 16,
+      marginBottom:10,
+    },
+    // Card base style
+    card: {
+      backgroundColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+      borderRadius: 8,
+      padding: 16,
+      marginBottom: 16,
+      borderColor: theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
+      borderWidth: 1,
+    },
+    // Overview Card
+    overviewCard: {
+      // backgroundColor was here, now handled by LinearGradient
+      // Add any specific styles for the overview card if different from general card
+    },
+    overviewCardTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: theme.colors.text.primary,
+      marginBottom: 16,
+    },
+    overviewDetails: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      width: '100%',
+    },
+    overviewDetailItem: {
+      alignItems: 'center',
+    },
+    badge: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      marginBottom: 4,
+    },
+    badgeText: {
+      color: 'white',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    secondaryBadge: {
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    overviewDetailLabel: {
+      color: theme.colors.text.secondary,
+      fontSize: 12,
+    },
+    // Weekly Breakdown
+    weeklyBreakdownContainer: {
+      marginTop: 8,
+    },
+    weekCardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    weekCardTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: theme.colors.text.primary,
+    },
+    cardContent: {
+      paddingLeft: 8,
+    },
+    sessionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    sessionBulletOuter: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    sessionBulletInner: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+    },
+    sessionText: {
+      flex: 1,
+      fontSize: 16,
+      color: theme.colors.text.primary,
+    },
+    // CTA Card
+    ctaCard: {
+      alignItems: 'center',
+      padding: 24,
+      marginTop: 8,
+    },
+    ctaTitle: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: theme.colors.text.primary,
+      marginBottom: 8,
+      textAlign: 'center',
+    },
+    ctaSubtitle: {
+      fontSize: 16,
+      color: theme.colors.text.secondary,
+      textAlign: 'center',
+      marginBottom: 20,
+      paddingHorizontal: 20,
+    },
+    downloadButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      borderRadius: 8,
+      marginTop: 8,
+    },
+    downloadButtonText: {
+      color: 'white',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    // Stop Goal Button - Removed as it's now handled by the parent RaceGoalScreen
+  });
   const handleBackPress = () => {
     onReset();
   };
@@ -335,166 +494,5 @@ const TrainingPlan: React.FC<TrainingPlanProps> = ({ fitnessLevel, raceType, onR
     </ScrollView>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: '#121212', // Dark background
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  backButton: {
-    padding: 8, // Make it easier to tap
-    marginRight: 8,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#a1a1aa',
-    textAlign: 'center',
-    marginBottom: 24,
-    paddingHorizontal: 20,
-  },
-  errorText: {
-    color: 'yellow',
-    textAlign: 'center',
-    fontSize: 16,
-    marginBottom:10,
-  },
-  // Card base style
-  card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', // white/10
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 16,
-    borderColor: 'rgba(255, 255, 255, 0.2)', // white/20
-    borderWidth: 1,
-  },
-  // Overview Card
-  overviewCard: {
-    // backgroundColor was here, now handled by LinearGradient
-    // Add any specific styles for the overview card if different from general card
-  },
-  overviewCardTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 16,
-  },
-  overviewDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  overviewDetailItem: {
-    alignItems: 'center',
-  },
-  overviewDetailLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 4,
-  },
-  // Badge base style
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-  },
-  secondaryBadge: { // For level, duration, frequency in overview
-    backgroundColor: 'rgba(255, 255, 255, 0.2)', // Lighter badge on colored background
-  },
-  badgeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  // Weekly Breakdown
-  weeklyBreakdownContainer: {
-    // No specific container style needed if cards have marginBottom
-  },
-  weekCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  weekCardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  cardContent: { // Generic content padding, used in week cards
-    paddingTop: 0,
-  },
-  sessionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sessionBulletOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(249, 115, 22, 0.2)', // orange-500/20
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  sessionBulletInner: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#f97316', // orange-500
-  },
-  sessionText: {
-    fontSize: 14,
-    color: '#d1d5db', // gray-300
-    flexShrink: 1, // Allow text to wrap
-  },
-  // Call to Action Card
-  ctaCard: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)', // white/5
-  },
-  ctaTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-    marginBottom: 8,
-  },
-  ctaSubtitle: {
-    fontSize: 14,
-    color: '#9ca3af', // gray-400
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  downloadButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    width: '100%',
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  downloadButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Removed unused styles as they're now handled by the parent RaceGoalScreen
-});
 
 export default TrainingPlan;

@@ -143,7 +143,7 @@ const RoutesScreen = () => {
   }
 
   return (
-    <ScrollView style={[styles.safeArea, dynamicStyles.safeArea]}>
+    <View style={[styles.safeArea, dynamicStyles.safeArea]}>
       <HeaderSafeArea />
       <View style={styles.headerTextContainer}>
         <Text style={[styles.headerTitle, dynamicStyles.headerTitle]}>Saved Routes</Text>
@@ -155,6 +155,9 @@ const RoutesScreen = () => {
           renderItem={renderRouteItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          ListHeaderComponent={
+            <View style={{ height: 16 }} />
+          }
           ListEmptyComponent={
             <View style={[styles.emptyContainer, dynamicStyles.emptyContainer]}>
               <Text style={[styles.emptyText, dynamicStyles.emptyText]}>
@@ -170,9 +173,12 @@ const RoutesScreen = () => {
             setRefreshing(true);
             loadRoutes();
           }}
+          ListFooterComponent={
+            <View style={{ height: 24 }} />
+          }
         />
       </View>
-    </ScrollView>
+    </View>
   );
 };
 
