@@ -245,10 +245,12 @@ const HistoryScreen: React.FC = () => {
                 <View style={styles.detailItem}>
                   <Clock size={16} color="#666" />
                   <Text style={styles.detailText}>
-                    {formatTime(item.duration)}
+                    {item.duration !== undefined && item.duration !== null 
+                      ? formatTime(item.duration)
+                      : '--:--'}
                   </Text>
                 </View>
-                {item.distance && (
+                {(item.distance || item.distance === 0) && (
                   <View style={styles.detailItem}>
                     <MapPin size={16} color="#666" />
                     <Text style={styles.detailText}>
@@ -256,7 +258,7 @@ const HistoryScreen: React.FC = () => {
                     </Text>
                   </View>
                 )}
-                {item.avgPace && (
+                {(item.avgPace || item.avgPace === 0) && (
                   <View style={styles.detailItem}>
                     <Footprints size={16} color="#666" />
                     <Text style={styles.detailText}>
@@ -264,7 +266,7 @@ const HistoryScreen: React.FC = () => {
                     </Text>
                   </View>
                 )}
-                {item.caloriesBurned && (
+                {(item.caloriesBurned || item.caloriesBurned === 0) && (
                   <View style={styles.detailItem}>
                     <Flame size={16} color="#666" />
                     <Text style={styles.detailText}>
@@ -300,7 +302,9 @@ const HistoryScreen: React.FC = () => {
                 >
                   <ChevronLeft size={24} color="#f97316" />
                 </TouchableOpacity>
-                <Text style={styles.modalTitle}>Workout Details</Text>
+                <View style={styles.modalTitleContainer}>
+                  <Text style={styles.modalTitle}>Workout Details</Text>
+                </View>
                 <View style={styles.headerSpacer} />
               </View>
             
@@ -415,13 +419,16 @@ const styles = StyleSheet.create({
     padding: 8,
     marginRight: 16,
   },
+  modalTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#f3f4f6',
-    flex: 1,
     textAlign: 'center',
-    marginRight: 40, // To balance the flex space
   },
   headerSpacer: {
     width: 40, // Same as back button width for balance

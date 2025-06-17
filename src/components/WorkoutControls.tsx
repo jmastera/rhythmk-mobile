@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Play, Pause, Square, Save } from 'lucide-react-native';
+import { Play, Pause, Square, Save, Headphones, Footprints } from 'lucide-react-native';
 import { WorkoutState } from '../types/workoutTypes'; // Adjust path if necessary
 
 interface WorkoutControlsProps {
@@ -10,6 +10,8 @@ interface WorkoutControlsProps {
   pauseTracking: () => void;
   stopTracking: () => void;
   currentRaceGoalName?: string | null;
+  onAudioPress?: () => void;
+  onPedometerPress?: () => void;
 }
 
 const WorkoutControls: React.FC<WorkoutControlsProps> = ({
@@ -19,7 +21,19 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({
   pauseTracking,
   stopTracking,
   currentRaceGoalName,
+  onAudioPress,
+  onPedometerPress,
 }) => {
+  // Render control buttons (audio and pedometer)
+  const renderControlButton = (onPress: (() => void) | undefined, icon: React.ReactNode, isActive = false) => (
+    <TouchableOpacity 
+      style={[styles.controlButton, isActive && styles.controlButtonActive]}
+      onPress={onPress}
+      disabled={!onPress}
+    >
+      {icon}
+    </TouchableOpacity>
+  );
   if (workoutState === 'countdown') {
     return (
       <View style={styles.countdownContainer}>
@@ -31,10 +45,19 @@ const WorkoutControls: React.FC<WorkoutControlsProps> = ({
   return (
     <View style={styles.controlsSection}>
       {(workoutState === 'idle' || workoutState === 'finished') && (
-        <TouchableOpacity style={[styles.button, styles.startButton]} onPress={initiateCountdown}>
-          <Play size={24} color="#FFF" />
-          <Text style={styles.buttonText}>{currentRaceGoalName ? `Start Race: ${currentRaceGoalName}` : 'Start Workout'}</Text>
-        </TouchableOpacity>
+        <View style={styles.mainControlsRow}>
+          {renderControlButton(onAudioPress, <Headphones size={24} color="#FFF" />, false)}
+          <TouchableOpacity 
+            style={[styles.button, styles.startButton]} 
+            onPress={initiateCountdown}
+          >
+            <Play size={24} color="#FFF" />
+            <Text style={styles.buttonText}>
+              {currentRaceGoalName ? `Start Race: ${currentRaceGoalName}` : 'Start Workout'}
+            </Text>
+          </TouchableOpacity>
+          {renderControlButton(onPedometerPress, <Footprints size={24} color="#FFF" />, false)}
+        </View>
       )}
 
       {(workoutState === 'active' || workoutState === 'paused') && (
@@ -67,6 +90,31 @@ const styles = StyleSheet.create({
   controlsSection: {
     marginBottom: 25,
     alignItems: 'center',
+    width: '100%',
+  },
+  mainControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    paddingHorizontal: 16,
+  },
+  controlButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#374151',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  controlButtonActive: {
+    backgroundColor: '#4B5563',
   },
   countdownContainer: {
     alignItems: 'center',

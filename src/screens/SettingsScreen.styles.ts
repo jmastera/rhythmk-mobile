@@ -1,9 +1,18 @@
 import { StyleSheet } from 'react-native';
 
 export const styles = StyleSheet.create({
+  userInfoSection: {
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 16,
+  },
+  userInfoText: {
+    marginLeft: 12,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#121212', // Dark background for the screen
+    backgroundColor: 'transparent',
   },
   userInfoContainer: {
     flexDirection: 'row',
@@ -14,36 +23,36 @@ export const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#007AFF',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)', // primary color with opacity
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   avatarText: {
-    color: '#fff',
+    color: '#10B981', // primary color
     fontSize: 18,
     fontWeight: 'bold',
   },
   userEmail: {
-    color: '#fff',
+    color: '#10B981', // primary color
     fontSize: 16,
     fontWeight: '500',
   },
   userStatus: {
-    color: '#888',
+    color: '#6B7280', // text.secondary in light mode
     fontSize: 12,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)', // error color with opacity
     borderRadius: 8,
     marginTop: 8,
     justifyContent: 'center',
   },
   logoutButtonText: {
-    color: '#FF3B30',
+    color: '#EF4444', // error color
     fontSize: 16,
     fontWeight: '500',
     marginLeft: 8,
@@ -83,13 +92,13 @@ export const styles = StyleSheet.create({
     borderRadius: 8,
   },
   debugInfoTitle: {
-    color: '#fff',
+    color: '#F9FAFB', // text.primary in dark mode
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
   },
   debugInfoText: {
-    color: '#ccc',
+    color: '#9CA3AF', // text.secondary in dark mode
     fontSize: 14,
     marginBottom: 4,
   },
@@ -123,8 +132,9 @@ export const styles = StyleSheet.create({
     marginTop: 20,
     marginHorizontal: 16,
     padding: 16,
-    backgroundColor: '#1e1e1e', // Slightly lighter than screen background
-    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   sectionContent: {
     paddingHorizontal: 8,
@@ -132,15 +142,15 @@ export const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    color: '#FFF',
-    fontWeight: 'bold',
+    color: '#F9FAFB', // text.primary in dark mode
+    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: 8,
     marginBottom: 16,
   },
@@ -150,15 +160,16 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
   },
   settingLabel: {
     fontSize: 16,
     color: 'white',
   },
   smallLabel: {
-    fontSize: 13,
-    color: '#b0b0b0', // Lighter grey for sub-labels
+    fontSize: 12,
+    color: '#9CA3AF', // text.secondary in dark mode
+    marginTop: 4,
     marginBottom: 4,
     textAlign: 'center', // Center align for feet/inches labels
   },
@@ -169,7 +180,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 20,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
     marginHorizontal: 6,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -193,25 +204,21 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
   },
   numericInput: {
-    backgroundColor: 'rgba(80, 80, 80, 0.5)', // More opaque dark grey background
+    flex: 1,
+    height: 40,
     borderWidth: 1,
-    borderColor: 'rgba(150, 150, 150, 0.7)', // More visible border
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10, // Increased vertical padding
-    color: '#FFFFFF', // Ensure text is white
-    minWidth: 70, // Adjusted minWidth
-    minHeight: 44, // Standard tap height
-    textAlign: 'center',
-    fontSize: 16,
+    color: '#F9FAFB', // text.primary in dark mode
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    textAlign: 'right',
   },
   settingRowDoubleInput: {
     flexDirection: 'row',
     justifyContent: 'space-around', // Use space-around for better spacing of ft/in inputs
     alignItems: 'flex-start', // Align items to the start of the cross axis
     flex: 1, // Allow this container to take available space in the row
-    // marginBottom: 16, // Removed, as settingRow will handle vertical spacing
-    // paddingHorizontal: 16, // Removed, let child doubleInputContainers manage their space
   },
   doubleInputContainer: {
     width: '45%', // Adjusted width to allow for space-around
@@ -221,15 +228,13 @@ export const styles = StyleSheet.create({
     width: '100%',
   },
   textInput: {
-    backgroundColor: 'rgba(80, 80, 80, 0.5)',
+    flex: 1,
+    height: 40,
     borderWidth: 1,
-    borderColor: 'rgba(150, 150, 150, 0.7)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: '#FFFFFF',
-    minHeight: 44,
-    fontSize: 16,
-    flex: 1, // Take up available space in the row
+    color: '#F9FAFB', // text.primary in dark mode
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
 });

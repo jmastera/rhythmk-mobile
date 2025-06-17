@@ -2,14 +2,14 @@ import 'react-native-get-random-values';
 import React, { useEffect, useState, useRef } from 'react';
 import { Audio } from 'expo-av';
 import BackgroundTimer from 'react-native-background-timer';
-import { NavigationContainer, useNavigationContainerRef } from '@react-navigation/native';
+import { NavigationContainer, useNavigationContainerRef, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar as RNStatusBar, View, Text, ActivityIndicator, StyleSheet, useColorScheme } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { ThemeProvider } from './src/theme/ThemeProvider';
+import { ThemeProvider, useTheme } from './src/theme/ThemeProvider';
 import { lightTheme, darkTheme } from './src/theme/theme';
 import { UserSettingsProvider } from './src/contexts/UserSettingsContext';
 import { RouteProvider } from './src/contexts/RouteContext';
@@ -23,7 +23,6 @@ import { useNavigation } from '@react-navigation/native';
 import AuthScreen from './src/screens/AuthScreen';
 import IndexScreen from './src/screens/IndexScreen';
 import NotFoundScreen from './src/screens/NotFoundScreen';
-import WorkoutTracker from './src/components/WorkoutTracker';
 import SettingsScreen from './src/screens/SettingsScreen';
 import ProgressScreen from './src/screens/ProgressScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
@@ -34,27 +33,34 @@ import RouteDetailsScreen from './src/screens/RouteDetailsScreen';
 import TrainingPlanScreen from './src/screens/TrainingPlanScreen';
 import { TrainingPlan } from './src/types/planTypes';
 
+// Import navigators
+import { BottomTabNavigator } from './src/navigation/BottomTabNavigator';
+
 // Initialize SQLite
 SQLite.enablePromise(true);
 
 // Create navigation types
 export type RootStackParamList = {
+  // Auth flow
   Auth: undefined;
-  Index: undefined;
-  NotFound: undefined;
+  
+  // Main app tabs (handled by BottomTabNavigator)
+  MainTabs: undefined;
+  
+  // Modal screens
   WorkoutTracker: { currentPlan?: TrainingPlan; routeToFollow?: any };
-  Settings: undefined;
-  Progress: undefined;
-  History: undefined;
   RaceGoal: { goalId?: string };
-  LogActivity: undefined;
-  Routes: undefined;
   RouteDetails: { routeId: string };
   TrainingPlan: {
-    fitnessLevel: string;
-    raceType: string;
+    fitnessLevel?: string;
+    raceType?: string;
     isPreview?: boolean;
   };
+  TrainingPlanMain: undefined;
+  SettingsMain: undefined;
+  
+  // Other screens
+  NotFound: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -67,10 +73,10 @@ const AuthListener = () => {
 
   useEffect(() => {
     if (user) {
-      // If user is logged in, navigate to Index screen
+      // If user is logged in, navigate to MainTabs (which contains the bottom tabs)
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Index' as never }],
+        routes: [{ name: 'MainTabs' as never }],
       });
     } else {
       // If user is not logged in, navigate to Auth screen
@@ -185,28 +191,71 @@ const App = () => {
                         backgroundColor: theme.colors.background,
                       },
                       headerTintColor: theme.colors.text.primary,
-                      headerBackTitle: undefined
+                      headerBackTitle: undefined,
+                      presentation: 'modal',
                     }}
                   >
+                    {/* Auth Stack */}
                     <Stack.Screen name="Auth" component={AuthScreen} />
-                    <Stack.Screen name="Index" component={IndexScreen} />
-                    <Stack.Screen name="NotFound" component={NotFoundScreen} options={{ title: 'Oops!' }} />
+                    
+                    {/* Main App Tabs */}
                     <Stack.Screen 
-                      name="WorkoutTracker" 
-                      component={WorkoutTracker as React.ComponentType<any>} 
-                      options={{ headerShown: false }} 
+                      name="MainTabs" 
+                      component={BottomTabNavigator} 
+                      options={{ headerShown: false }}
                     />
-                    <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
-                    <Stack.Screen name="Progress" component={ProgressScreen} options={{ title: 'Progress' }} />
-                    <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'Workout History' }} />
-                    <Stack.Screen name="RaceGoal" component={RaceGoalScreen} options={{ title: 'Set Race Goal' }} />
-                    <Stack.Screen name="LogActivity" component={LogActivityScreen} options={{ title: 'Log Activity' }} />
-                    <Stack.Screen name="Routes" component={RoutesScreen} options={{ title: 'Routes' }} />
-                    <Stack.Screen name="RouteDetails" component={RouteDetailsScreen} options={{ title: 'Route Details' }} />
+                    
+                    {/* Modal Screens */}
+                    <Stack.Screen 
+                      name="RaceGoal" 
+                      component={RaceGoalScreen} 
+                      options={{ 
+                        headerShown: true,
+                        title: 'Set Race Goal',
+                        headerStyle: {
+                          backgroundColor: theme.colors.background,
+                        },
+                        headerTintColor: theme.colors.text.primary,
+                      }} 
+                    />
+                    
+                    <Stack.Screen 
+                      name="RouteDetails" 
+                      component={RouteDetailsScreen} 
+                      options={{ 
+                        headerShown: true,
+                        title: 'Route Details',
+                        headerStyle: {
+                          backgroundColor: theme.colors.background,
+                        },
+                        headerTintColor: theme.colors.text.primary,
+                      }} 
+                    />
+                    
                     <Stack.Screen 
                       name="TrainingPlan" 
                       component={TrainingPlanScreen} 
-                      options={{ title: 'Training Plan' }} 
+                      options={{ 
+                        headerShown: true,
+                        title: 'Training Plan',
+                        headerStyle: {
+                          backgroundColor: theme.colors.background,
+                        },
+                        headerTintColor: theme.colors.text.primary,
+                      }} 
+                    />
+                    
+                    {/* Other Screens */}
+                    <Stack.Screen 
+                      name="NotFound" 
+                      component={NotFoundScreen} 
+                      options={{ 
+                        title: 'Oops!',
+                        headerStyle: {
+                          backgroundColor: theme.colors.background,
+                        },
+                        headerTintColor: theme.colors.text.primary,
+                      }} 
                     />
                   </Stack.Navigator>
                 </NavigationContainer>

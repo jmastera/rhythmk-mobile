@@ -5,13 +5,14 @@ import {
   StyleSheet, 
   TouchableOpacity, 
   ScrollView,
+  SafeAreaView,
+  StatusBar,
+  Platform
 } from 'react-native';
 import { ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '../theme/ThemeProvider';
 import { useNavigation } from '@react-navigation/native';
 import { useUserSettings } from '../hooks/useUserSettings';
-import { SafeArea } from '../components/SafeArea';
-import { HeaderSafeArea } from '../components/HeaderSafeArea';
 import RaceTypeSelector from '../components/RaceTypeSelector';
 import type { RaceGoal } from '../types/userTypes';
 import type { Theme } from '../theme/theme';
@@ -67,14 +68,21 @@ const FITNESS_LEVELS: FitnessLevelOption[] = [
 // Create styles with proper TypeScript types
 const createStyles = (theme: Theme) => {
   return StyleSheet.create({
-    container: {
+    safeArea: {
       flex: 1,
       backgroundColor: theme.colors.background,
+      paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     },
-    contentContainer: {
-      flexGrow: 1,
+    container: {
+      flex: 1,
       padding: theme.spacing.md,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
       paddingBottom: theme.spacing.xl,
+      paddingTop: theme.spacing.sm,
     },
     centered: {
       flex: 1,
@@ -285,74 +293,69 @@ const RaceGoalScreen: React.FC = () => {
   // Add your component logic here
   
   return (
-    <SafeArea style={styles.container}>
-      <HeaderSafeArea />
-      <ScrollView contentContainerStyle={styles.contentContainer}>
-        <View style={styles.headerContainer}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackPress}
-          >
-            <ArrowLeft size={24} color={theme.colors.text.primary} />
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Set Your Race Goal</Text>
-            <Text style={styles.headerDescription}>
-              Choose your fitness level and race type to get a personalized training plan
-            </Text>
-          </View>
-        </View>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar 
+        barStyle={theme.mode === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={theme.colors.background}
+      />
+      <View style={styles.container}>
         
-        {currentStep === 'selectFitness' && isInitialized && (
-          <View style={styles.cardsContainer}>
-            {FITNESS_LEVELS.map((level) => (
-              <TouchableOpacity
-                key={level.id}
-                style={[
-                  styles.fitnessLevelCard,
-                  selectedFitnessLevel === level.id && styles.fitnessLevelCardSelected,
-                ]}
-                onPress={() => setSelectedFitnessLevel(level.id)}
-              >
-                <View style={styles.fitnessLevelContent}>
-                  <View>
-                    <Text style={styles.fitnessLevelName}>{level.name}</Text>
-                    <Text style={styles.fitnessLevelDescription}>{level.description}</Text>
-                  </View>
-                  {selectedFitnessLevel === level.id && (
-                    <View style={styles.selectedIndicator}>
-                      <Text style={{ color: theme.colors.primary }}>✓</Text>
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
+        >
+            {currentStep === 'selectFitness' && isInitialized && (
+              <View style={styles.cardsContainer}>
+                {FITNESS_LEVELS.map((level) => (
+                  <TouchableOpacity
+                    key={level.id}
+                    style={[
+                      styles.fitnessLevelCard,
+                      selectedFitnessLevel === level.id && styles.fitnessLevelCardSelected,
+                    ]}
+                    onPress={() => setSelectedFitnessLevel(level.id)}
+                  >
+                    <View style={styles.fitnessLevelContent}>
+                      <View>
+                        <Text style={styles.fitnessLevelName}>{level.name}</Text>
+                        <Text style={styles.fitnessLevelDescription}>{level.description}</Text>
+                      </View>
+                      {selectedFitnessLevel === level.id && (
+                        <View style={styles.selectedIndicator}>
+                          <Text style={{ color: theme.colors.primary }}>✓</Text>
+                        </View>
+                      )}
                     </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            ))}
-            
-            {selectedFitnessLevel && (
-              <TouchableOpacity
-                style={styles.button}
-                onPress={() => {
-                  setFlowFitnessLevel(selectedFitnessLevel);
-                  setCurrentStep('selectRaceType');
-                }}
-              >
-                <Text style={styles.buttonText}>Continue</Text>
-              </TouchableOpacity>
+                  </TouchableOpacity>
+                ))}
+                
+                {selectedFitnessLevel && (
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={() => {
+                      setFlowFitnessLevel(selectedFitnessLevel);
+                      setCurrentStep('selectRaceType');
+                    }}
+                  >
+                    <Text style={styles.buttonText}>Continue</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
-          </View>
-        )}
-        
-        {currentStep === 'selectRaceType' && isInitialized && (
-          <View style={{ flex: 1 }}>
-            <RaceTypeSelector 
-              onSelect={handleRaceTypeSelect}
-              currentRaceTypeId={selectedRaceType}
-            />
-          </View>
-        )}
-        
-      </ScrollView>
-    </SafeArea>
+            
+            {currentStep === 'selectRaceType' && isInitialized && (
+              <View style={{ flex: 1 }}>
+                <RaceTypeSelector 
+                  onSelect={handleRaceTypeSelect}
+                  currentRaceTypeId={selectedRaceType}
+                />
+              </View>
+            )}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 };
 

@@ -8,23 +8,28 @@ import TrainingPlan from '../components/TrainingPlan';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { FAB, Button } from 'react-native-paper';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../../App';
+import type { RootStackParamList } from '../navigation/types';
 import type { RaceGoalData } from '../types/userTypes';
 
 type FitnessLevel = 'beginner' | 'intermediate' | 'advanced';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'TrainingPlan'> & {
+type Props = NativeStackScreenProps<RootStackParamList, 'TrainingPlanMain'> & {
   route: {
-    params: {
-      fitnessLevel: string;
-      raceType: string;
+    params?: {
+      fitnessLevel?: string;
+      raceType?: string;
       isPreview?: boolean;
     };
   };
 };
 
 const TrainingPlanScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { fitnessLevel, raceType, isPreview = false } = route.params;
+  // Provide default values if route.params is undefined
+  const { 
+    fitnessLevel = 'beginner', 
+    raceType = '5k', 
+    isPreview = false 
+  } = route.params || {};
   const [isSaving, setIsSaving] = useState(false);
   const theme = useTheme();
   const { settings, updateSettings } = useUserSettings();
@@ -106,7 +111,6 @@ const TrainingPlanScreen: React.FC<Props> = ({ route, navigation }) => {
 
   return (
     <SafeArea style={styles.container}>
-      <HeaderSafeArea />
       <TrainingPlan 
         fitnessLevel={fitnessLevel}
         raceType={raceType}

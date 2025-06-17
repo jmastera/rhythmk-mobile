@@ -47,6 +47,7 @@ export type Theme = {
     full: number;
   };
   typography: Typography;
+  mode: 'light' | 'dark';
 };
 
 const baseSpacing: Spacing = {
@@ -99,6 +100,7 @@ const baseTypography: Typography = {
 };
 
 export const lightTheme: Theme = {
+  mode: 'light',
   colors: {
     primary: '#10B981',
     background: '#F9FAFB',
@@ -120,6 +122,7 @@ export const lightTheme: Theme = {
 
 export const darkTheme: Theme = {
   ...lightTheme,
+  mode: 'dark',
   colors: {
     ...lightTheme.colors,
     background: '#111827',

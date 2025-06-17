@@ -24,6 +24,8 @@ import WorkoutCardSettings from '../components/WorkoutCardSettings';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { AudioCueSettingsData } from '../types/audioTypes';
 import { Database, Json } from '../types/database.types';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/types';
 
 type DisplayUnit = 'km' | 'miles' | 'min/km' | 'min/mile';
 
@@ -60,7 +62,9 @@ const defaultAudioCueSettings: AudioCueSettingsData = {
   splitAnnouncementsEnabled: true
 };
 
-const SettingsScreen = () => {
+type Props = NativeStackScreenProps<RootStackParamList, 'SettingsMain'>;
+
+const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const {
     profile,
     preferences,
@@ -209,13 +213,12 @@ const SettingsScreen = () => {
   const handleLogout = async () => {
     try {
       await signOut();
-      // Navigation will be handled by the auth state change listener in AuthProvider
+      // Navigation is handled by the AuthListener in App.tsx
     } catch (error) {
-      Alert.alert('Error', 'Failed to log out. Please try again.');
-      console.error('Logout error:', error);
+      console.error('Error signing out:', error);
     }
   };
-  
+
   // Toggle expanded/collapsed state for a section
   const toggleSection = (section: 'personalInfo' | 'audioCues' | 'userAttributes' | 'displayPrefs' | 'workoutCards' | 'workoutSettings' | 'debugSettings') => {
     setExpandedSections(prev => ({
@@ -577,10 +580,28 @@ const SettingsScreen = () => {
         </View>
 
         {/* User Info */}
-        <View style={{ paddingVertical: 10, paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: '#333', marginBottom: 10 }}>
+        <View style={styles.userInfoSection}>
           {user?.email && (
-            <Text style={{ color: '#ccc', fontSize: 14 }}>Logged in as: {user.email}</Text>
+            <View style={styles.userInfoContainer}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {user.email.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.userInfoText}>
+                <Text style={styles.userEmail}>{user.email}</Text>
+                <Text style={styles.userStatus}>Active</Text>
+              </View>
+            </View>
           )}
+          <TouchableOpacity 
+            style={styles.logoutButton}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <LogOut size={18} color="#EF4444" />
+            <Text style={styles.logoutButtonText}>Sign Out</Text>
+          </TouchableOpacity>
         </View>
 
       {/* Personal Information Section */}
