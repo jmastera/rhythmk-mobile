@@ -166,9 +166,33 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
   // Hooks
   const { settings, isLoadingSettings, updateAudioCueDefaults } = useUserSettings();
   const { saveRoute } = useRoutes();
-  const { startWorkout, pauseWorkout, resumeWorkout, stopWorkout, currentWorkout } = useWorkout();
+  const { 
+    startWorkout, 
+    pauseWorkout, 
+    resumeWorkout, 
+    stopWorkout, 
+    currentWorkout,
+    workoutState,
+    distance: contextDistance,
+    duration: contextDuration,
+    currentPace: contextCurrentPace,
+    avgPace: contextAvgPace,
+    elevationGain: contextElevationGain,
+    caloriesBurned: contextCaloriesBurned
+  } = useWorkout();
   const insets = useSafeAreaInsets();
   useKeepAwake();
+  
+  // Update user path coordinates when positions change
+  useEffect(() => {
+    if (currentWorkout?.positions && currentWorkout.positions.length > 0) {
+      const newPath = currentWorkout.positions.map((pos: { latitude: number; longitude: number; }) => ({
+        latitude: pos.latitude,
+        longitude: pos.longitude
+      }));
+      setUserPathCoordinates(newPath);
+    }
+  }, [currentWorkout?.positions]);
   
   // Get route params
   const { routeToFollow: initialRoute, currentPlan } = route?.params || {};
@@ -176,18 +200,11 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
   // State
   const [routeToFollow, setRouteToFollow] = useState<RouteType | null>(initialRoute || null);
   const [showRouteDetails, setShowRouteDetails] = useState(false);
-  const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [duration, setDuration] = useState(0); // in seconds
-  const [distance, setDistance] = useState(0); // in km
-  const [currentPace, setCurrentPace] = useState(0); // min/km
-  const [avgPace, setAvgPace] = useState(0); // min/km
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [userPathCoordinates, setUserPathCoordinates] = useState<Coordinate[]>([]);
-  const [estimatedCalories, setEstimatedCalories] = useState(0);
-  const [totalElevationGain, setTotalElevationGain] = useState(0);
   const [workoutNotes, setWorkoutNotes] = useState('');
-  const [countdownValue, setCountdownValue] = useState(0);
+  const [countdownValue, setCountdownValue] = useState<number | null>(null);
+  const [isCountingDown, setIsCountingDown] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [showPedometerModal, setShowPedometerModal] = useState(false);
   const [currentCoachTip, setCurrentCoachTip] = useState<{ id: string; title: string; tip: string } | null>(null);
@@ -199,6 +216,14 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
   const [pedometerDistance, setPedometerDistance] = useState(0);
   const [hybridDistance, setHybridDistance] = useState(0);
   const [isMounted, setIsMounted] = useState(true);
+  
+  // Sync local state with context state
+  const distance = contextDistance / 1000; // Convert meters to km
+  const duration = contextDuration;
+  const currentPace = contextCurrentPace || 0;
+  const avgPace = contextAvgPace || 0;
+  const estimatedCalories = Math.round(contextCaloriesBurned);
+  const totalElevationGain = contextElevationGain;
 
   // Refs
   const mapRef = useRef<any>(null);
@@ -258,32 +283,24 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
     setGpsActive(active);
     setShowPedometerModal(false);
     
-    // When switching to GPS mode, update the distance to use GPS data
-    if (active && workoutState === 'active' && !isPausedRef.current) {
-      // If we have hybrid distance (GPS + steps), use that
-      if (hybridDistance > 0) {
-        setDistance(hybridDistance);
-      }
-    } else if (!active && workoutState === 'active' && !isPausedRef.current) {
-      // When switching to pedometer mode, use the pedometer distance
-      setDistance(pedometerDistance);
-    }
-  }, [workoutState, hybridDistance, pedometerDistance]);
+    // Note: The actual distance tracking is now handled by the WorkoutContext
+    // The gpsActive state is only used to determine which distance source to display
+  }, [workoutState]);
 
   // Pedometer Integration
   const handleStepDistanceUpdate = useCallback((stepDistKm: number) => {
     if (workoutState === 'active' && !isPausedRef.current && !gpsActive) {
-      setDistance(stepDistKm);
+      // Update the pedometer distance which will be used for display
       setPedometerDistance(stepDistKm);
+      // Note: The actual distance is managed by the WorkoutContext
     }
   }, [gpsActive, workoutState]);
 
   const handleHybridDistanceUpdate = useCallback((hybridDistKm: number) => {
     if (workoutState === 'active' && !isPausedRef.current && gpsActive) {
-      // Only update the hybridDistance state, don't modify the main distance
+      // Update the hybrid distance which will be used for display
       setHybridDistance(hybridDistKm);
-      // If GPS is active, update the main distance with the hybrid value
-      setDistance(hybridDistKm);
+      // Note: The actual distance is managed by the WorkoutContext
     }
   }, [gpsActive, workoutState]);
 
@@ -307,6 +324,43 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
     // Add other required props based on useAudioCues interface
   });
 
+  // Handle countdown timer
+  const startCountdown = useCallback(() => {
+    const countdownDuration = settings.countdownDuration || 3; // Default to 3 seconds if not set
+    let currentCount = countdownDuration;
+    
+    // Set initial countdown value
+    setCountdownValue(currentCount);
+    setIsCountingDown(true);
+    
+    // Start the countdown
+    const countdownInterval = setInterval(() => {
+      currentCount--;
+      
+      if (currentCount > 0) {
+        setCountdownValue(currentCount);
+        // Add haptic feedback
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      } else {
+        // Countdown finished
+        clearInterval(countdownInterval);
+        setCountdownValue(null);
+        setIsCountingDown(false);
+        // Start the actual workout
+        startWorkout();
+      }
+    }, 1000);
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(countdownInterval);
+  }, [settings.countdownDuration, startWorkout]);
+  
+  // Update workout state refs when workoutState changes
+  useEffect(() => {
+    isTrackingRef.current = workoutState === 'active' || workoutState === 'paused';
+    isPausedRef.current = workoutState === 'paused';
+  }, [workoutState]);
+
   // Handle audio cues
   const handleAudioCue = useCallback((message: string) => {
     if (audioCueSettingsRef.current.enabled) {
@@ -321,6 +375,13 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
+      {/* Countdown overlay */}
+      {isCountingDown && countdownValue !== null && (
+        <View style={styles.countdownOverlay}>
+          <Text style={styles.countdownText}>{countdownValue}</Text>
+        </View>
+      )}
+      
       <HeaderSafeArea />
       
       {/* Header */}
@@ -381,7 +442,7 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
         <WorkoutControls
           workoutState={workoutState}
           countdownValue={countdownValue}
-          initiateCountdown={startWorkout}
+          initiateCountdown={startCountdown}
           pauseTracking={workoutState === 'paused' ? resumeWorkout : pauseWorkout}
           stopTracking={stopWorkout}
           currentRaceGoalName={currentPlan?.name}
@@ -455,6 +516,22 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
 };
 
 const styles = StyleSheet.create({
+  countdownOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  countdownText: {
+    fontSize: 120,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
   container: {
     flex: 1,
     backgroundColor: 'transparent',
