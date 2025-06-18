@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, StatusBar 
 import { Plus, PlayCircle, Target, TrendingUp, Calendar, Map, Navigation } from 'lucide-react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/types';
+import type { RootStackParamList, BottomTabParamList } from '../navigation/types';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getRaceColor } from '../utils/raceColors';
@@ -18,9 +18,10 @@ interface CardDataItem {
   title: string;
   icon: React.ElementType; // Lucide icons are components
   description: string;
-  navigateTo?: keyof RootStackParamList; // Make it optional and typed
+  navigateTo?: keyof BottomTabParamList; // Use BottomTabParamList for tab navigation
   styleType: 'primary' | 'secondary';
   fullWidth?: boolean;
+  params?: any; // Optional params for navigation
 }
 
 type IndexScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Index'> & {
@@ -88,17 +89,9 @@ const IndexScreen = () => {
       title: 'History', 
       icon: Calendar, 
       description: 'Past workouts', 
-      navigateTo: 'HistoryList', 
+      navigateTo: 'History', 
       styleType: 'primary' 
-    },
-    { 
-      id: 'LogActivity', 
-      title: 'Log Activity', 
-      icon: Plus, 
-      description: 'Manually log a workout', 
-      navigateTo: 'LogActivity', 
-      styleType: 'primary' 
-    },
+    }
   ];
 
   const renderCard = (item: typeof cardData[0]) => {
@@ -127,16 +120,11 @@ const IndexScreen = () => {
     const handlePress = () => {
       if (!item.navigateTo) return;
       
-      // Special handling for modal screens
-      if (item.navigateTo === 'RaceGoal') {
-        // Just navigate to RaceGoal without the ID since it's not part of the type
-        navigation.navigate('RaceGoal');
-      } else if (item.navigateTo === 'LogActivity') {
-        navigation.navigate('LogActivity');
-      } else {
-        // For tab navigation, we can use navigate to switch tabs
-        navigation.navigate(item.navigateTo as any);
-      }
+      // For tab navigation, navigate to MainTabs with the tab screen name as a param
+      navigation.navigate('MainTabs', { 
+        screen: item.navigateTo,
+        params: item.params
+      });
     };
 
     return (

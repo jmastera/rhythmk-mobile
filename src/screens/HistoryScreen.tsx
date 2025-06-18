@@ -9,7 +9,8 @@ import {
   Alert, 
   ActivityIndicator, 
   RefreshControl, 
-  SafeAreaView 
+  SafeAreaView,
+  ScrollView
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -289,43 +290,62 @@ const HistoryScreen: React.FC = () => {
         <Modal
           visible={isModalVisible}
           animationType="slide"
+          transparent={true}
           onRequestClose={() => setModalVisible(false)}
           statusBarTranslucent={true}
         >
-          <SafeAreaView style={{ flex: 1, backgroundColor: '#1f2937' }}>
+          <TouchableOpacity 
+            style={styles.modalOverlay} 
+            activeOpacity={1}
+            onPress={() => setModalVisible(false)}
+          >
             <View style={styles.modalContainer}>
-              <View style={styles.modalHeader}>
-                <TouchableOpacity 
-                  onPress={() => setModalVisible(false)}
-                  style={styles.backButton}
-                  hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                >
-                  <ChevronLeft size={24} color="#f97316" />
-                </TouchableOpacity>
-                <View style={styles.modalTitleContainer}>
-                  <Text style={styles.modalTitle}>Workout Details</Text>
+              <TouchableOpacity 
+                style={styles.modalContent}
+                activeOpacity={1}
+                onPress={(e) => e.stopPropagation()}
+              >
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalHandle} />
+                  <View style={styles.modalTitleContainer}>
+                    <Text style={styles.modalTitle}>Workout Details</Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => setModalVisible(false)}
+                    style={styles.closeButton}
+                    hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                  >
+                    <X size={24} color="#f97316" />
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.headerSpacer} />
-              </View>
             
             {workoutForDetailView && (
-              <WorkoutDetail 
-                workout={workoutForDetailView}
-                onEditNotes={(workoutId, currentNotes) => {
-                  // Close the modal and navigate to edit screen
-                  setModalVisible(false);
-                  navigation.navigate('EditWorkout', { 
-                    workout: {
-                      ...workoutForDetailView,
-                      id: workoutId,
-                      notes: currentNotes
-                    } 
-                  });
-                }}
-              />
+              <View style={styles.scrollContainer}>
+                <ScrollView 
+                  style={styles.scrollView}
+                  contentContainerStyle={styles.scrollContent}
+                  showsVerticalScrollIndicator={true}
+                >
+                  <WorkoutDetail 
+                    workout={workoutForDetailView}
+                    onEditNotes={(workoutId, currentNotes) => {
+                      // Close the modal and navigate to edit screen
+                      setModalVisible(false);
+                      navigation.navigate('EditWorkout', { 
+                        workout: {
+                          ...workoutForDetailView,
+                          id: workoutId,
+                          notes: currentNotes
+                        } 
+                      });
+                    }}
+                  />
+                </ScrollView>
+              </View>
             )}
+              </TouchableOpacity>
             </View>
-          </SafeAreaView>
+          </TouchableOpacity>
         </Modal>
       </SafeAreaView>
     </ErrorBoundary>
@@ -336,6 +356,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#111827', // Dark background
+  },
+  list: {
+    flex: 1,
+  },
+  listContent: {
+    padding: 8,
+    paddingBottom: 16,
   },
   headerTextContainer: {
     paddingHorizontal: 24,
@@ -403,53 +430,66 @@ const styles = StyleSheet.create({
     marginRight: 4,
     color: '#9ca3af', // Match secondary text color
   },
-  modalContainer: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: '#111827', // Dark background
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#1f2937',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '90%',
+  },
+  modalContent: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+    padding: 16,
+  },
+  scrollContent: {
+    paddingBottom: 24,
   },
   modalHeader: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#374151',
-    backgroundColor: '#1f2937',
+    paddingBottom: 16,
   },
-  backButton: {
-    padding: 8,
-    marginRight: 16,
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#4b5563',
+    borderRadius: 2,
+    marginBottom: 12,
+  },
+  closeButton: {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    padding: 12,
   },
   modalTitleContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#f3f4f6',
-    textAlign: 'center',
   },
   headerSpacer: {
-    width: 40, // Same as back button width for balance
-    height: 40, // Match the height of the back button for vertical alignment
-  },
-  closeButton: {
-    padding: 4,
-  },
-  scrollView: {
-    flex: 1,
-    backgroundColor: '#111827', // Match container background
+    width: 40,
+    height: 40,
   },
   contentContainer: {
     paddingBottom: 20,
-  },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    padding: 8,
-  },
+  }
 });
 
 export default HistoryScreen;

@@ -12,18 +12,33 @@ import {
   Modal,
   Dimensions,
   ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
-import { Headphones, Footprints } from 'lucide-react-native';
+import { 
+  Headphones, 
+  Footprints, 
+  Clock as ClockIcon, 
+  Ruler, 
+  Flame, 
+  Edit2, 
+  Calendar
+} from 'lucide-react-native';
 import BackgroundTimer from 'react-native-background-timer';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useTheme } from '@react-navigation/native';
+import { lightTheme, darkTheme } from '../theme/theme';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
 import { v4 as uuidv4 } from 'uuid';
 import { useKeepAwake } from 'expo-keep-awake';
-
+import DateTimePicker from '@react-native-community/datetimepicker';
+// Context
+import { useWorkout } from '../contexts/WorkoutContext';
 // Types
 import { TablesInsert } from '../types/supabase';
 import { Split, WorkoutEntry, WORKOUT_HISTORY_KEY, Coordinate } from '../types/workoutTypes';
@@ -31,6 +46,7 @@ import { TrainingPlan } from '../types/trainingPlanTypes';
 import { Route as RouteType, RoutePoint } from '../types/routeTypes';
 import { AudioCueSettingsData } from '../types/audioTypes';
 import { RootStackParamList } from '../types/navigationTypes';
+import { ActivityType, isGpsActivity, ACTIVITY_TYPES, WORKOUT_TYPE_DISPLAY_NAMES as WORKOUT_DISPLAY_NAMES } from '../constants/workoutConstants';
 
 // Components
 import AudioCueSettings from '../components/AudioCueSettings';
@@ -42,14 +58,13 @@ import CoachTipsDisplay, { CoachTip } from '../components/CoachTipsDisplay';
 import WorkoutMapDisplay from '../components/WorkoutMapDisplay';
 import WorkoutNotesInput from '../components/WorkoutNotesInput';
 import PedometerModeDisplay from '../components/PedometerModeDisplay';
+import WorkoutTypeDropdown from '../components/WorkoutTypeDropdown';
 
 // Hooks
 import { useAudioCues } from '../hooks/useAudioCues';
 import { useUserSettings } from '../hooks/useUserSettings';
 import { useRoutes } from '../contexts/RouteContext';
 import { useStepCounter } from '../hooks/useStepCounter';
-import { useWorkout } from '../contexts/WorkoutContext';
-
 // Utils
 import { formatPaceDisplay, formatDurationDisplay, formatDistanceDisplay } from '../utils/PaceCalculator';
 import { getRaceColor } from '../utils/raceColors';
@@ -84,6 +99,7 @@ interface WorkoutTrackerScreenProps {
   route: WorkoutTrackerScreenRouteProp;
   navigation: any;
   onWorkoutComplete?: (workoutData: WorkoutEntry) => void;
+  initialActivityType?: ActivityType; // Allow passing initial activity type from navigation
 }
 
 // Helper function to convert SplitData to Split for display
@@ -150,6 +166,21 @@ const formatPace = (paceInSeconds: number): string => {
   return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };
 
+// Format pace based on user settings
+const formatPaceForDisplay = (pace: number | null): string => {
+  if (pace === null) return '--:--';
+  // Convert pace to seconds per km or mile based on settings
+  const paceInSeconds = pace;
+  return formatPace(paceInSeconds);
+};
+
+// Calculate pace in min/km or min/mile based on settings
+const calculatePace = (distance: number, duration: number): number | null => {
+  if (distance <= 0 || duration <= 0) return null;
+  const paceInSeconds = (duration / 60) / (distance / 1000); // Convert to min/km
+  return paceInSeconds;
+};
+
 type WorkoutTrackerScreenRouteProp = RouteProp<
   {
     WorkoutTracker: {
@@ -162,12 +193,20 @@ type WorkoutTrackerScreenRouteProp = RouteProp<
 
 type WorkoutState = 'idle' | 'countdown' | 'active' | 'paused' | 'saving' | 'finished';
 
-const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navigation, onWorkoutComplete }) => {
+const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ 
+  route, 
+  navigation, 
+  onWorkoutComplete,
+  initialActivityType = 'Run' // Default to Run if not specified
+}) => {
   // Hooks
   const { settings, isLoadingSettings, updateAudioCueDefaults } = useUserSettings();
   const { saveRoute } = useRoutes();
   const { startWorkout, pauseWorkout, resumeWorkout, stopWorkout, currentWorkout } = useWorkout();
   const insets = useSafeAreaInsets();
+  const theme = useTheme();
+  const currentTheme = theme.dark ? darkTheme : lightTheme;
+  const { colors } = currentTheme;
   useKeepAwake();
   
   // Get route params
@@ -178,10 +217,6 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
   const [showRouteDetails, setShowRouteDetails] = useState(false);
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
   const [startTime, setStartTime] = useState<number | null>(null);
-  const [duration, setDuration] = useState(0); // in seconds
-  const [distance, setDistance] = useState(0); // in km
-  const [currentPace, setCurrentPace] = useState(0); // min/km
-  const [avgPace, setAvgPace] = useState(0); // min/km
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [userPathCoordinates, setUserPathCoordinates] = useState<Coordinate[]>([]);
   const [estimatedCalories, setEstimatedCalories] = useState(0);
@@ -199,6 +234,122 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
   const [pedometerDistance, setPedometerDistance] = useState(0);
   const [hybridDistance, setHybridDistance] = useState(0);
   const [isMounted, setIsMounted] = useState(true);
+  const [manualDistance, setManualDistance] = useState('');
+  const [distance, setDistance] = useState(0);
+  const [manualDuration, setManualDuration] = useState<number>(0);
+  const [manualCalories, setManualCalories] = useState<number>(0);
+  const [workoutStats, setWorkoutStats] = useState<any>(null);
+  const [workoutDate, setWorkoutDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [notes, setNotes] = useState(''); // State for workout notes
+  
+  // Toggle date picker visibility
+  const toggleDatePicker = useCallback((): void => {
+    setShowDatePicker((prev: boolean) => !prev);
+  }, []);
+  
+  // Handle date change from date picker
+  const handleDateChange = useCallback((event: any, selectedDate?: Date): void => {
+    const currentDate = selectedDate || workoutDate;
+    setShowDatePicker(Platform.OS === 'ios'); // Keep picker open on iOS
+    setWorkoutDate(currentDate);
+  }, [workoutDate]);
+  
+  // Handle step distance update from pedometer
+  const handleStepDistanceUpdate = useCallback((distanceInKm: number) => {
+    setPedometerDistance(distanceInKm * 1000); // Convert km to meters
+  }, []);
+  
+  // Handle hybrid distance update (combination of GPS and pedometer)
+  const handleHybridDistanceUpdate = useCallback((distanceInKm: number) => {
+    setHybridDistance(distanceInKm * 1000); // Convert km to meters
+  }, []);
+  
+  // Handle GPS active state change
+  const handleGpsActiveChange = useCallback((active: boolean) => {
+    setGpsActive(active);
+  }, []);
+  
+  // Handler for audio settings button press
+  const handleAudioSettingsPress = useCallback(() => {
+    setShowAudioSettings(true);
+  }, []);
+  
+  // Handler for distance change in manual entry form
+  const handleDistanceChange = (distance: string) => {
+    setManualDistance(distance);
+    // Parse the distance string to a number and update the distance state
+    const distanceNum = parseFloat(distance) || 0;
+    setDistance(distanceNum);
+  };
+  
+  // Handler for calories change in manual entry form
+  const handleCaloriesChange = (calories: string) => {
+    // Parse the calories string to a number
+    const caloriesNum = parseInt(calories, 10) || 0;
+    setEstimatedCalories(caloriesNum);
+  };
+  
+  // Format workout stats for display
+  const formatStatsForDisplay = useCallback(() => {
+    return {
+      distance: distanceRef.current,
+      duration: durationRef.current,
+      pace: calculatePace(distanceRef.current, durationRef.current),
+      calories: estimatedCalories,
+      elevation: totalElevationGain,
+      date: new Date()
+    };
+  }, [estimatedCalories, totalElevationGain]);
+  
+  // Handler for starting tracking
+  const startTracking = useCallback(() => {
+    setWorkoutState('active');
+    isTrackingRef.current = true;
+    isPausedRef.current = false;
+    // Additional start logic here
+  }, []);
+
+  // Handler for pausing workout
+  const pauseTracking = useCallback(() => {
+    setWorkoutState('paused');
+    isPausedRef.current = true;
+    isTrackingRef.current = false;
+    // Additional pause logic here
+  }, []);
+  
+  // Handler for stopping workout
+  const stopTracking = useCallback(() => {
+    setWorkoutState('saving');
+    isTrackingRef.current = false;
+    isPausedRef.current = false;
+    // Additional stop logic here
+    // When done saving, transition to 'finished' state
+    setTimeout(() => {
+      setWorkoutState('finished');
+    }, 1000);
+  }, []);
+  
+  // Handler for initiating countdown
+  const initiateCountdown = useCallback(() => {
+    setWorkoutState('countdown');
+    
+    // Start countdown from 3
+    let count = 3;
+    setCountdownValue(count);
+    
+    const countdownInterval = setInterval(() => {
+      count--;
+      setCountdownValue(count);
+      
+      if (count <= 0) {
+        clearInterval(countdownInterval);
+        startTracking();
+      }
+    }, 1000);
+    
+    return () => clearInterval(countdownInterval);
+  }, [startTracking]);
 
   // Refs
   const mapRef = useRef<any>(null);
@@ -244,152 +395,139 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
     announceCalories: false,
     splitAnnouncementsEnabled: true
   });
+  // State for activity type and workout data
+  const [activityType, setActivityType] = useState<ActivityType>(initialActivityType);
+  const [isGpsBased, setIsGpsBased] = useState<boolean>(isGpsActivity(initialActivityType));
+  
+  // Derived state for workout tracking
+  const isTracking = workoutState === 'active' || workoutState === 'paused';
+  const isPaused = workoutState === 'paused';
+  const isCountingDown = workoutState === 'countdown';
 
-  // Handle GPS active state changes
-  const handleGpsActiveChange = useCallback((active: boolean) => {
-    if (workoutState === 'active') {
-      Alert.alert(
-        'Warning',
-        'Changing GPS tracking mode during a workout may affect accuracy.',
-        [{ text: 'OK' }],
-        { cancelable: true }
-      );
-    }
-    setGpsActive(active);
-    setShowPedometerModal(false);
-    
-    // When switching to GPS mode, update the distance to use GPS data
-    if (active && workoutState === 'active' && !isPausedRef.current) {
-      // If we have hybrid distance (GPS + steps), use that
-      if (hybridDistance > 0) {
-        setDistance(hybridDistance);
-      }
-    } else if (!active && workoutState === 'active' && !isPausedRef.current) {
-      // When switching to pedometer mode, use the pedometer distance
-      setDistance(pedometerDistance);
-    }
-  }, [workoutState, hybridDistance, pedometerDistance]);
 
-  // Pedometer Integration
-  const handleStepDistanceUpdate = useCallback((stepDistKm: number) => {
-    if (workoutState === 'active' && !isPausedRef.current && !gpsActive) {
-      setDistance(stepDistKm);
-      setPedometerDistance(stepDistKm);
-    }
-  }, [gpsActive, workoutState]);
 
-  const handleHybridDistanceUpdate = useCallback((hybridDistKm: number) => {
-    if (workoutState === 'active' && !isPausedRef.current && gpsActive) {
-      // Only update the hybridDistance state, don't modify the main distance
-      setHybridDistance(hybridDistKm);
-      // If GPS is active, update the main distance with the hybrid value
-      setDistance(hybridDistKm);
-    }
-  }, [gpsActive, workoutState]);
-
-  // Initialize step counter
-  const { steps, distance: stepCounterDistance, hybridDistance: stepCounterHybridDistance } = useStepCounter({
-    enabled: workoutState === 'active' && !isPausedRef.current && (settings.usePedometer ?? true),
-    isRunning: true, // Assuming running
-    userHeightCm: settings.userHeight || 170,
-    onDistanceChange: handleStepDistanceUpdate,
-    onHybridDistanceChange: handleHybridDistanceUpdate,
-    gpsDistanceMeters: gpsActive ? distance * 1000 : 0, // Convert km to meters for GPS distance
-    isGpsActive: gpsActive,
-  });
-
-  // Initialize audio cues hook
-  useAudioCues({
-    isTracking: isTrackingRef.current,
-    isPausedRef: isPausedRef,
-    currentPace,
-    distance,
-    // Add other required props based on useAudioCues interface
-  });
-
-  // Handle audio cues
-  const handleAudioCue = useCallback((message: string) => {
-    if (audioCueSettingsRef.current.enabled) {
-      Speech.speak(message, {
-        rate: 0.9,
-        pitch: 1.0,
-      });
-    }
-  }, []);
-
-  // ... rest of the component code will go here ...
-
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <HeaderSafeArea />
-      
-      {/* Header */}
-      <View style={styles.headerTextContainer}>
-        <Text style={styles.headerTitle}>{currentPlan?.name || 'Quick Run'}</Text>
-        {currentPlan?.type && (
-          <Text style={styles.headerSubtitle}>
-            {formatRaceType(currentPlan.type)}
-          </Text>
-        )}
+  // Render manual entry form for non-GPS activities
+  const renderManualEntryForm = () => (
+    <View style={styles.manualEntryContainer}>
+      {/* Duration Picker */}
+      <View style={styles.inputContainer}>
+        <View style={styles.inputIcon}>
+          <Clock size={20} color={currentTheme.colors.text.primary} />
+        </View>
+        <TextInput
+          style={[styles.input, { color: currentTheme.colors.text.primary }]}
+          placeholder="Duration (minutes)"
+          placeholderTextColor={currentTheme.colors.text.secondary}
+          keyboardType="numeric"
+          value={manualDuration > 0 ? manualDuration.toString() : ''}
+          onChangeText={(text) => setManualDuration(parseInt(text) || 0)}
+        />
       </View>
 
-      {/* Map View */}
+      {/* Distance Input */}
+      <View style={styles.inputContainer}>
+        <View style={styles.inputIcon}>
+          <Ruler size={20} color={currentTheme.colors.text.primary} />
+        </View>
+        <TextInput
+          style={[styles.input, { color: currentTheme.colors.text.primary }]}
+          placeholder="Distance (km)"
+          placeholderTextColor={currentTheme.colors.text.secondary}
+          keyboardType="numeric"
+          value={manualDistance}
+          onChangeText={handleDistanceChange}
+        />
+      </View>
+
+      {/* Calories Input */}
+      <View style={styles.inputContainer}>
+        <View style={styles.inputIcon}>
+          <Flame size={20} color={currentTheme.colors.text.primary} />
+        </View>
+        <TextInput
+          style={[styles.input, { color: currentTheme.colors.text.primary }]}
+          placeholder="Calories (optional)"
+          placeholderTextColor={currentTheme.colors.text.secondary}
+          keyboardType="numeric"
+          value={manualCalories > 0 ? manualCalories.toString() : ''}
+          onChangeText={(text) => setManualCalories(parseInt(text) || 0)}
+        />
+      </View>
+
+      {/* Date Picker */}
+      <TouchableOpacity 
+        style={styles.inputContainer}
+        onPress={toggleDatePicker}
+      >
+        <View style={styles.inputIcon}>
+          <Calendar size={20} color={typeof currentTheme.colors.text === 'string' ? currentTheme.colors.text : currentTheme.colors.text.primary} />
+        </View>
+        <Text style={[styles.input, { color: typeof currentTheme.colors.text === 'string' ? currentTheme.colors.text : currentTheme.colors.text.primary }]}>
+          {workoutDate.toLocaleDateString()}
+        </Text>
+      </TouchableOpacity>
+
+      {showDatePicker && (
+        <DateTimePicker
+          value={workoutDate}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+          maximumDate={new Date()}
+        />
+      )}
+    </View>
+  );
+
+  // Render GPS-based workout UI
+  const renderGpsWorkoutUI = () => (
+    <View style={{ flex: 1 }}>
+      {/* Map and Stats Section */}
       <View style={styles.mapContainer}>
-        <WorkoutMapDisplay
+        <WorkoutMapDisplay 
           settings={settings}
-          routeCoordinates={routeCoordinates}
+          routeCoordinates={routeToFollow?.waypoints || []}
           userPathCoordinates={userPathCoordinates}
           currentLocation={lastPosition}
           workoutState={workoutState}
         />
       </View>
-
-      {/* Main Content */}
-      <ScrollView style={styles.contentContainer}>
-        {/* Workout Stats Grid */}
-        <WorkoutStatsGrid 
-          displayDistance={`${(distance / 1000).toFixed(2)} km`}
-          displayDuration={formatDuration(duration)}
-          displayPace={`${formatPace(currentPace)}/km`}
-          displayAvgPace={`${formatPace(avgPace)}/km`}
-          displayCalories={`${Math.round(estimatedCalories)}`}
-          totalElevationGain={0} // TODO: Add elevation gain calculation if needed
-          settings={settings}
-        />
-
-        {/* Coach Tips */}
-        {currentCoachTip && (
-          <CoachTipsDisplay 
-            settings={settings}
-            currentCoachTip={currentCoachTip}
-            workoutState={workoutState}
-          />
-        )}
-
-        {/* Next Turn Info */}
-        {nextTurnInstruction && (
-          <View style={styles.nextTurnContainer}>
-            <Text style={styles.nextTurnText}>
-              {nextTurnInstruction}{distanceToNextTurn ? ` in ${distanceToNextTurn.toFixed(2)} km` : ''}
-            </Text>
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Controls */}
+      
+      {/* Workout Stats Grid */}
+      <WorkoutStatsGrid
+        displayDistance={formatDistanceDisplay(distanceRef.current, settings.useMiles ? 'miles' : 'km')}
+        displayDuration={formatDurationDisplay(durationRef.current)}
+        displayPace={formatPaceForDisplay(calculatePace(distanceRef.current, durationRef.current))}
+        displayAvgPace={formatPaceForDisplay(calculatePace(distanceRef.current, durationRef.current))}
+        displayCalories={Math.round(estimatedCalories).toString()}
+        totalElevationGain={totalElevationGain}
+        settings={settings}
+      />
+      
       <View style={styles.controlsContainer}>
-        <WorkoutControls
+        <WorkoutControls 
           workoutState={workoutState}
           countdownValue={countdownValue}
-          initiateCountdown={startWorkout}
-          pauseTracking={workoutState === 'paused' ? resumeWorkout : pauseWorkout}
-          stopTracking={stopWorkout}
+          initiateCountdown={initiateCountdown}
+          pauseTracking={pauseTracking}
+          stopTracking={stopTracking}
           currentRaceGoalName={currentPlan?.name}
-          onAudioPress={() => setShowAudioSettings(true)}
+          onAudioPress={handleAudioSettingsPress}
           onPedometerPress={() => setShowPedometerModal(true)}
         />
       </View>
+    </View>
+  );
 
+  useEffect(() => {
+    setWorkoutStats(formatStatsForDisplay());
+  }, [formatStatsForDisplay]);
+
+  // Use the getStyles function defined at the end of the file
+  const styles = getStyles(currentTheme);
+
+  return (
+    <View style={styles.container}>
       {/* Audio Settings Modal */}
       <Modal
         visible={showAudioSettings}
@@ -420,73 +558,164 @@ const WorkoutTrackerScreen: React.FC<WorkoutTrackerScreenProps> = ({ route, navi
         </View>
       </Modal>
 
-    {/* Pedometer Mode Modal */}
-    <Modal
-      visible={showPedometerModal}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={() => setShowPedometerModal(false)}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Pedometer Mode</Text>
-            <TouchableOpacity 
-              onPress={() => setShowPedometerModal(false)} 
-              style={styles.closeButton}
-              hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
-            >
-              <X size={24} color="#9CA3AF" />
-            </TouchableOpacity>
+      {/* Pedometer Mode Modal */}
+      <Modal
+        visible={showPedometerModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPedometerModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Pedometer Settings</Text>
+              <TouchableOpacity 
+                onPress={() => setShowPedometerModal(false)} 
+                style={styles.closeButton}
+                hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
+              >
+                <X size={24} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            <PedometerTrackingMode
+              isActive={workoutState === 'active' && !isPausedRef.current}
+              gpsDistanceKm={distanceRef.current / 1000}
+              onStepDistanceUpdate={handleStepDistanceUpdate}
+              onHybridDistanceUpdate={handleHybridDistanceUpdate}
+              gpsActive={gpsActive}
+              onGpsActiveChange={handleGpsActiveChange}
+            />
           </View>
-          <PedometerTrackingMode
-            isActive={workoutState === 'active' && !isPausedRef.current}
-            gpsDistanceKm={distance}
-            onStepDistanceUpdate={handleStepDistanceUpdate}
-            onHybridDistanceUpdate={handleHybridDistanceUpdate}
-            gpsActive={gpsActive}
-            onGpsActiveChange={handleGpsActiveChange}
-          />
         </View>
-      </View>
-    </Modal>
-  </View>
+      </Modal>
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+      >
+        <HeaderSafeArea />
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Activity Type Selector */}
+          <View style={styles.workoutTypeContainer}>
+            <Text style={styles.workoutTypeLabel}>Activity Type</Text>
+            <WorkoutTypeDropdown
+              selectedActivity={activityType}
+              onSelect={setActivityType}
+              disabled={isTrackingRef.current || isPausedRef.current}
+            />
+          </View>
+
+          {/* Dynamic Content Based on Activity Type */}
+          {isGpsBased ? renderGpsWorkoutUI() : renderManualEntryForm()}
+
+          {/* Notes Section */}
+          <WorkoutNotesInput 
+            workoutState={workoutState}
+            workoutNotes={notes}
+            setWorkoutNotes={setNotes}
+            style={{ color: typeof currentTheme.colors.text === 'string' ? currentTheme.colors.text : currentTheme.colors.text.primary }}
+          />
+        </ScrollView>
+
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
-const styles = StyleSheet.create({
+// Get styles based on current theme
+const getStyles = (currentTheme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'transparent',
-    paddingBottom: 70, // Add padding to account for bottom tab bar
+    backgroundColor: currentTheme.colors.background,
   },
-  headerTextContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 0, // Reduced from 16 to move content up
-    paddingBottom: 12, // Slight bottom padding for spacing
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  header: {
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: currentTheme.colors.text.primary,
     textAlign: 'center',
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#9CA3AF',
+    color: currentTheme.colors.text.secondary,
     textAlign: 'center',
   },
+  headerActions: {
+    flexDirection: 'row',
+  },
+  headerButton: {
+    marginLeft: 16,
+  },
+  headerTextContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 0,
+    paddingBottom: 12,
+    alignItems: 'center',
+  },
   mapContainer: {
-    height: '40%', // Slightly reduce map height
+    height: '40%',
     backgroundColor: 'transparent',
+    marginBottom: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  controlsContainer: {
+    paddingTop: 16,
+    paddingBottom: 16,
+  },
+  workoutTypeContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  workoutTypeLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+    color: currentTheme.colors.text.primary,
+  },
+  manualEntryContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
   contentContainer: {
     flex: 1,
     padding: 8,
     paddingTop: 0,
-    paddingBottom: 70, // Add padding to account for controls
+    paddingBottom: 70,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: currentTheme.colors.background.secondary,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: currentTheme.colors.border.primary,
+  },
+  inputIcon: {
+    marginRight: 12,
+    color: currentTheme.colors.text.primary,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    color: currentTheme.colors.text.primary,
+    fontSize: 16,
   },
   modalOverlay: {
     flex: 1,
@@ -494,7 +723,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#1F2937', // Dark gray background
+    backgroundColor: currentTheme.colors.background.modal,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -529,15 +758,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  controlsContainer: {
-    position: 'absolute',
-    bottom: 70, // Position above the bottom tab bar
-    left: 16,
-    right: 16,
-    padding: 16,
-    backgroundColor: 'transparent',
-    zIndex: 10, // Ensure it's above other content
-  },
+
   nextTurnContainer: {
     backgroundColor: 'rgba(59, 130, 246, 0.2)',
     padding: 12,

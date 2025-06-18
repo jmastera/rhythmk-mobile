@@ -12,7 +12,41 @@ interface WorkoutDetailProps {
   onEditNotes?: (workoutId: string, currentNotes: string | undefined) => void;
 }
 
-const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) => {
+// Default workout values to ensure required fields are always defined
+const defaultWorkout: WorkoutEntry = {
+  id: '',
+  date: new Date().toISOString(),
+  duration: 0,
+  distance: 0,
+  avgPace: undefined,
+  avgHeartRate: undefined,
+  calories: undefined,
+  notes: undefined,
+  planName: undefined,
+  totalElevationGain: undefined,
+  totalElevationLoss: undefined,
+  splits: undefined,
+  steps: undefined,
+  coordinates: []
+};
+
+const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ 
+  workout: propWorkout, 
+  onEditNotes 
+}) => {
+  // Ensure we always have a valid workout object with all required fields
+  const workout = {
+    ...defaultWorkout,
+    ...(propWorkout || {})
+  };
+  
+  // Ensure required fields are properly typed
+  if (!workout.id) {
+    console.warn('WorkoutDetail: Missing required id prop');
+  }
+  if (!workout.date) {
+    console.warn('WorkoutDetail: Missing required date prop');
+  }
   const { settings } = useUserSettings();
   const mapRef = useRef<MapView | null>(null);
 
@@ -47,7 +81,25 @@ const WorkoutDetail: React.FC<WorkoutDetailProps> = ({ workout, onEditNotes }) =
         <View style={styles.detailRow}>
           <Calendar size={18} color="#f97316" style={styles.icon} />
           <Text style={styles.detailLabel}>Date:</Text>
-          <Text style={styles.detailValue}>{workout.date && !isNaN(new Date(workout.date).getTime()) ? new Date(workout.date).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Invalid Date'}</Text>
+          <Text style={styles.detailValue}>
+            {(() => {
+              try {
+                if (!workout.date) return 'No date';
+                const date = new Date(workout.date);
+                if (isNaN(date.getTime())) return 'Invalid date';
+                return date.toLocaleDateString([], { 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric', 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                });
+              } catch (error) {
+                console.error('Error formatting date:', error);
+                return 'Date error';
+              }
+            })()}
+          </Text>
         </View>
         <View style={styles.detailRow}>
           <Zap size={18} color="#f97316" style={styles.icon} />

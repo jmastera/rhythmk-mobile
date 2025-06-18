@@ -40,25 +40,34 @@ export interface UserSettings {
   userHeightCm?: number; // In cm
   userHeightFeet?: number; // For display only when using imperial units
   userHeightInches?: number; // For display only when using imperial units
+  weight: number;
+  height: number;
+  dateOfBirth?: string;
   
   // Units
   displayUnit: DisplayUnit; // 'km' or 'mi'
   heightUnit: 'cm' | 'ft-in';
   weightUnit: 'kg' | 'lb';
+  useMiles: boolean; // Whether to use miles instead of kilometers for distance display
+  distanceUnit: 'km' | 'miles';
+  paceUnit: 'min/km' | 'min/mile';
   
   // App settings
   darkMode?: boolean;
   audioPrompts?: boolean;
   notificationsEnabled?: boolean;
   showMap?: boolean;
-  showCoachTips?: boolean;
+  showCoachTips: boolean;
   showCalories?: boolean; // Added for WorkoutStatsGrid
   showElevation?: boolean; // Added for WorkoutStatsGrid
   countdownDuration?: number; // Added for WorkoutTracker countdown
   usePedometer?: boolean; // Added for PedometerModeDisplay and WorkoutTracker
+  useGps?: boolean;
+  useHybridTracking?: boolean;
   
   // Audio settings
   audioCueDefaults: AudioCueSettingsData;
+  audioCueSettings?: AudioCueSettingsData;
   
   // Debug settings
   showDebugInfo?: boolean;

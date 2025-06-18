@@ -6,12 +6,17 @@ interface WorkoutNotesInputProps {
   workoutState: WorkoutState;
   workoutNotes: string;
   setWorkoutNotes: (notes: string) => void;
+  style?: {
+    color?: string;
+    // Add other style properties as needed
+  };
 }
 
 const WorkoutNotesInput: React.FC<WorkoutNotesInputProps> = ({
   workoutState,
   workoutNotes,
   setWorkoutNotes,
+  style,
 }) => {
   // Show notes input only when active or paused
   if (workoutState !== 'active' && workoutState !== 'paused') {
@@ -20,9 +25,9 @@ const WorkoutNotesInput: React.FC<WorkoutNotesInputProps> = ({
 
   return (
     <View style={styles.notesSection}>
-      <Text style={styles.sectionTitleSmall}>Workout Notes:</Text>
+      <Text style={[styles.sectionTitleSmall, style]}>Workout Notes:</Text>
       <TextInput
-        style={styles.notesInput}
+        style={[styles.notesInput, style]}
         value={workoutNotes}
         onChangeText={setWorkoutNotes}
         placeholder="How did it go? Any PBs?"
