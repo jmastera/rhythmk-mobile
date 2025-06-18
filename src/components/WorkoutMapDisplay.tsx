@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, Text, Platform, Alert } from 'react-native';
 import MapView, { Polyline, Marker, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -23,6 +23,7 @@ const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
   const [mapReady, setMapReady] = useState(false);
   const [region, setRegion] = useState<Region | null>(null);
   const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
+  const mapRef = useRef<MapView>(null);
 
   // Request location permissions and get current location
   const getLocation = useCallback(async () => {
@@ -57,18 +58,25 @@ const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
     getLocation();
   }, [getLocation]);
 
-  // Update region when current location changes from parent
+  // Update map region when current location changes from parent
   useEffect(() => {
-    if (currentLocation) {
+    if (currentLocation && workoutState === 'active') {
       const newRegion = {
         latitude: currentLocation.coords.latitude,
         longitude: currentLocation.coords.longitude,
         latitudeDelta: 0.005,
         longitudeDelta: 0.005,
       };
+      
+      // Update the region state
       setRegion(newRegion);
+      
+      // Animate the map to the new location
+      if (mapRef.current) {
+        mapRef.current.animateToRegion(newRegion, 1000);
+      }
     }
-  }, [currentLocation]);
+  }, [currentLocation, workoutState]);
 
   const handleMapReady = () => {
     setMapReady(true);
@@ -87,15 +95,17 @@ const WorkoutMapDisplay: React.FC<WorkoutMapDisplayProps> = ({
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         region={mapRegion}
         onMapReady={handleMapReady}
         showsUserLocation={true}
-        followsUserLocation={true}
+        followsUserLocation={false} // We'll handle following manually
         showsMyLocationButton={true}
         loadingEnabled={true}
         loadingIndicatorColor="#666666"
         loadingBackgroundColor="#1C1C1E"
+        moveOnMarkerPress={false}
       >
         {/* Predefined route (orange) */}
         {routeCoordinates.length > 1 && (

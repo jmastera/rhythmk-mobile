@@ -5,7 +5,7 @@ import { WorkoutState } from '../types/workoutTypes'; // Adjust path if necessar
 
 interface WorkoutControlsProps {
   workoutState: WorkoutState;
-  countdownValue: number;
+  countdownValue: number | null;
   initiateCountdown: () => void;
   pauseTracking: () => void;
   stopTracking: () => void;
